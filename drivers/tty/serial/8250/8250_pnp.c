@@ -25,6 +25,7 @@
 
 #define UNKNOWN_DEV 0x3000
 #define CIR_PORT	0x0800
+#define CHECK_FINTEK	0x4000
 
 static const struct pnp_device_id pnp_dev_table[] = {
 	/* Archtek America Corp. */
@@ -207,7 +208,7 @@ static const struct pnp_device_id pnp_dev_table[] = {
 	/* Generic standard PC COM port	 */
 	{	"PNP0500",		0	},
 	/* Generic 16550A-compatible COM port */
-	{	"PNP0501",		0	},
+	{	"PNP0501",	CHECK_FINTEK	},
 	/* Compaq 14400 Modem */
 	{	"PNPC000",		0	},
 	/* Compaq 2400/9600 Modem */
@@ -478,6 +479,12 @@ serial_pnp_probe(struct pnp_dev *dev, const struct pnp_device_id *dev_id)
 	uart.port.uartclk = 1843200;
 	uart.port.dev = &dev->dev;
 
+	if (flags & CHECK_FINTEK) {
+		ret = fintek_8250_probe(&uart);
+		if (ret && ret != -ENODEV)
+			return ret;
+	}
+
 	line = serial8250_register_8250_port(&uart);
 	if (line < 0 || (flags & CIR_PORT))
 		return -ENODEV;
@@ -485,6 +492,7 @@ serial_pnp_probe(struct pnp_dev *dev, const struct pnp_device_id *dev_id)
 	port = serial8250_get_port(line);
 	if (uart_console(&port->port))
 		dev->capabilities |= PNP_CONSOLE;
+
 
 	pnp_set_drvdata(dev, (void *)((long)line + 1));
 	return 0;
