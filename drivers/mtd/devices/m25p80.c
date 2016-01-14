@@ -49,6 +49,9 @@ static int m25p80_read_reg(struct spi_nor *nor, u8 code, u8 *val, int len)
 
 static void m25p_addr2cmd(struct spi_nor *nor, unsigned int addr, u8 *cmd)
 {
+	if (nor->flags & SNOR_F_S3AN_ADDR_NATIVE)
+		addr = spi_nor_s3an_addr_convert(nor, addr);
+
 	/* opcode is in cmd[0] */
 	cmd[1] = addr >> (nor->addr_width * 8 -  8);
 	cmd[2] = addr >> (nor->addr_width * 8 - 16);

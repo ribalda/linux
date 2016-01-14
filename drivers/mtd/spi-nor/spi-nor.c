@@ -75,6 +75,12 @@ struct flash_info {
 					 * bit. Must be used with
 					 * SPI_NOR_HAS_LOCK.
 					 */
+#define	SPI_S3AN		BIT(10)	/*
+					 * Xilinx Spartan 3AN In-System Flash
+					 * (MFR cannot be used for probing
+					 * because it has the same value as
+					 * ATMEL flashes)
+					*/
 };
 
 #define JEDEC_MFR(info)	((info)->id[0])
@@ -217,6 +223,21 @@ static inline int set_4byte(struct spi_nor *nor, const struct flash_info *info,
 		return nor->write_reg(nor, SPINOR_OP_BRWR, nor->cmd_buf, 1);
 	}
 }
+
+static int s3an_sr_ready(struct spi_nor *nor)
+{
+	int ret;
+	u8 val;
+
+	ret = nor->read_reg(nor, SPINOR_OP_XRDSR, &val, 1);
+	if (ret < 0) {
+		pr_err("error %d reading XRDSR\n", (int) ret);
+		return ret;
+	}
+
+	return !!(val & XSR_RDY);
+}
+
 static inline int spi_nor_sr_ready(struct spi_nor *nor)
 {
 	int sr = read_sr(nor);
@@ -238,7 +259,9 @@ static inline int spi_nor_fsr_ready(struct spi_nor *nor)
 static int spi_nor_ready(struct spi_nor *nor)
 {
 	int sr, fsr;
-	sr = spi_nor_sr_ready(nor);
+
+	sr = nor->flags & SNOR_F_READY_XSR_RDY ? s3an_sr_ready(nor) :
+						 spi_nor_sr_ready(nor);
 	if (sr < 0)
 		return sr;
 	fsr = nor->flags & SNOR_F_USE_FSR ? spi_nor_fsr_ready(nor) : 1;
@@ -320,6 +343,23 @@ static void spi_nor_unlock_and_unprep(struct spi_nor *nor, enum spi_nor_ops ops)
 }
 
 /*
+ * This code converts an address to the Default Address Mode, that has non
+ * power of two page sizes. We must support this mode because it is the default
+ * mode supported by Xilinx tools, it can access the whole flash area and
+ * changing over to the Power-of-two mode is irreversible and corrupts the
+ * original data.
+ */
+unsigned int spi_nor_s3an_addr_convert(struct spi_nor *nor, unsigned int addr)
+{
+	unsigned int offset;
+
+	offset = (nor->page_size == 264) ? (addr % 264) : (addr % 528);
+
+	return ((addr - offset) << 1) | offset;
+}
+EXPORT_SYMBOL_GPL(spi_nor_s3an_addr_convert);
+
+/*
  * Initiate the erasure of a single sector
  */
 static int spi_nor_erase_sector(struct spi_nor *nor, u32 addr)
@@ -329,6 +369,9 @@ static int spi_nor_erase_sector(struct spi_nor *nor, u32 addr)
 
 	if (nor->erase)
 		return nor->erase(nor, addr);
+
+	if (nor->flags & SNOR_F_S3AN_ADDR_NATIVE)
+		addr = spi_nor_s3an_addr_convert(nor, addr);
 
 	/*
 	 * Default implementation, if driver doesn't have a specialized HW
@@ -368,7 +411,7 @@ static int spi_nor_erase(struct mtd_info *mtd, struct erase_info *instr)
 		return ret;
 
 	/* whole-chip erase? */
-	if (len == mtd->size) {
+	if (len == mtd->size && !(nor->flags & SNOR_F_NO_OP_CHIP_ERASE)) {
 		unsigned long timeout;
 
 		write_enable(nor);
@@ -782,6 +825,19 @@ static int spi_nor_is_locked(struct mtd_info *mtd, loff_t ofs, uint64_t len)
 		.addr_width = (_addr_width),				\
 		.flags = (_flags),
 
+#define S3AN_INFO(_jedec_id, _n_sectors, _page_size)			\
+		.id = {							\
+			((_jedec_id) >> 16) & 0xff,			\
+			((_jedec_id) >> 8) & 0xff,			\
+			(_jedec_id) & 0xff				\
+			},						\
+		.id_len = 3,						\
+		.sector_size = (8*_page_size),				\
+		.n_sectors = (_n_sectors),				\
+		.page_size = _page_size,				\
+		.addr_width = 3,					\
+		.flags = SPI_NOR_NO_FR | SPI_S3AN,
+
 /* NOTE: double check command sets and memory organization when you add
  * more nor chips.  This current list focusses on newer chips, which
  * have been converging on command sets which including JEDEC ID.
@@ -991,6 +1047,13 @@ static const struct flash_info spi_nor_ids[] = {
 	{ "cat25c09", CAT25_INFO( 128, 8, 32, 2, SPI_NOR_NO_ERASE | SPI_NOR_NO_FR) },
 	{ "cat25c17", CAT25_INFO( 256, 8, 32, 2, SPI_NOR_NO_ERASE | SPI_NOR_NO_FR) },
 	{ "cat25128", CAT25_INFO(2048, 8, 64, 2, SPI_NOR_NO_ERASE | SPI_NOR_NO_FR) },
+
+	/* Xilinx S3AN Internal Flash */
+	{ "3S50AN", S3AN_INFO(0x1f2200, 64, 264) },
+	{ "3S200AN", S3AN_INFO(0x1f2400, 256, 264) },
+	{ "3S400AN", S3AN_INFO(0x1f2400, 256, 264) },
+	{ "3S700AN", S3AN_INFO(0x1f2500, 512, 264) },
+	{ "3S1400AN", S3AN_INFO(0x1f2600, 512, 528) },
 	{ },
 };
 
@@ -1122,7 +1185,13 @@ static int spi_nor_write(struct mtd_info *mtd, loff_t to, size_t len,
 
 	write_enable(nor);
 
-	page_offset = to & (nor->page_size - 1);
+	if (hweight32(nor->page_size) == 1)
+		page_offset = to & (nor->page_size - 1);
+	else {
+		uint64_t aux = to;
+
+		page_offset = do_div(aux, nor->page_size);
+	}
 
 	/* do all the bytes fit onto one page? */
 	if (page_offset + len <= nor->page_size) {
@@ -1245,6 +1314,34 @@ static int spi_nor_check(struct spi_nor *nor)
 		!nor->read_reg || !nor->write_reg) {
 		pr_err("spi-nor: please fill all the necessary fields!\n");
 		return -EINVAL;
+	}
+
+	return 0;
+}
+
+static int s3an_nor_scan(const struct flash_info *info, struct spi_nor *nor)
+{
+	int ret;
+	u8 val;
+
+	ret = nor->read_reg(nor, SPINOR_OP_XRDSR, &val, 1);
+	if (ret < 0) {
+		pr_err("error %d reading XRDSR\n", (int) ret);
+		return ret;
+	}
+
+	nor->erase_opcode = SPINOR_OP_XSE;
+	nor->program_opcode = SPINOR_OP_XPP;
+	nor->read_opcode = SPINOR_OP_READ;
+	nor->flags |= SNOR_F_NO_OP_CHIP_ERASE | SNOR_F_READY_XSR_RDY;
+
+	/*Flash in Power of 2 mode*/
+	if (val & XSR_PAGESIZE) {
+		nor->page_size = (nor->page_size == 264) ? 256 : 512;
+		nor->mtd.writebufsize = nor->page_size;
+		nor->mtd.size = 8 * nor->page_size * info->n_sectors;
+		nor->mtd.erasesize = 8 * nor->page_size;
+		nor->flags |= SNOR_F_S3AN_ADDR_NATIVE;
 	}
 
 	return 0;
@@ -1454,6 +1551,12 @@ int spi_nor_scan(struct spi_nor *nor, const char *name, enum read_mode mode)
 	}
 
 	nor->read_dummy = spi_nor_read_dummy_cycles(nor);
+
+	if (info->flags & SPI_S3AN) {
+		ret = s3an_nor_scan(info, nor);
+		if (ret)
+			return ret;
+	}
 
 	dev_info(dev, "%s (%lld Kbytes)\n", info->name,
 			(long long)mtd->size >> 10);
