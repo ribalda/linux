@@ -272,6 +272,14 @@ static const struct serial8250_config uart_config[] = {
 		.rxtrig_bytes	= {1, 4, 8, 14},
 		.flags		= UART_CAP_FIFO,
 	},
+	[PORT_F81216A] = {
+		.name		= "Fintek F81216A",
+		.fifo_size	= 16,
+		.tx_loadsz	= 16,
+		.fcr		= UART_FCR_ENABLE_FIFO | UART_FCR_R_TRIG_10,
+		.rxtrig_bytes	= {1, 4, 8, 14},
+		.flags		= UART_CAP_FIFO,
+	},
 };
 
 /* Uart divisor latch read */
@@ -1151,6 +1159,12 @@ static void autoconfig_16550a(struct uart_8250_port *up)
 		up->port.type = PORT_U6_16550A;
 		up->capabilities |= UART_CAP_AFE;
 	}
+
+	/*
+	 * Check if the device is a Fintek F81216A
+	 */
+	if (fintek_8250_probe(up) == 0)
+		up->port.type = PORT_F81216A;
 }
 
 /*
