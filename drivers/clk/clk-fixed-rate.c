@@ -15,6 +15,7 @@
 #include <linux/io.h>
 #include <linux/err.h>
 #include <linux/of.h>
+#include <linux/platform_device.h>
 
 /*
  * DOC: basic fixed-rate clock that cannot gate
@@ -149,7 +150,7 @@ EXPORT_SYMBOL_GPL(clk_unregister_fixed_rate);
 /**
  * of_fixed_clk_setup() - Setup function for simple fixed rate clock
  */
-void of_fixed_clk_setup(struct device_node *node)
+struct clk *_of_fixed_clk_setup(struct device_node *node)
 {
 	struct clk *clk;
 	const char *clk_name = node->name;
@@ -157,7 +158,7 @@ void of_fixed_clk_setup(struct device_node *node)
 	u32 accuracy = 0;
 
 	if (of_property_read_u32(node, "clock-frequency", &rate))
-		return;
+		return ERR_PTR(-EIO);
 
 	of_property_read_u32(node, "clock-accuracy", &accuracy);
 
@@ -167,7 +168,64 @@ void of_fixed_clk_setup(struct device_node *node)
 						    0, rate, accuracy);
 	if (!IS_ERR(clk))
 		of_clk_add_provider(node, of_clk_src_simple_get, clk);
+
+	return clk;
+}
+
+void of_fixed_clk_setup(struct device_node *node)
+{
+	_of_fixed_clk_setup(node);
 }
 EXPORT_SYMBOL_GPL(of_fixed_clk_setup);
 CLK_OF_DECLARE(fixed_clk, "fixed-clock", of_fixed_clk_setup);
+
+static int of_fixed_clk_remove(struct platform_device *pdev)
+{
+	struct clk *clk = platform_get_drvdata(pdev);
+
+	if (clk)
+		clk_unregister_fixed_rate(clk);
+
+	return 0;
+}
+
+static int of_fixed_clk_probe(struct platform_device *pdev)
+{
+	struct clk *clk;
+
+	/*
+	 * Don't do anything if of_clk_init() has already
+	 * added this clock to the provider list
+	 */
+	if (of_clk_is_provider(pdev->dev.of_node))
+		return 0;
+
+	clk = _of_fixed_clk_setup(pdev->dev.of_node);
+
+	if (IS_ERR(clk))
+		return PTR_ERR(clk);
+
+	platform_set_drvdata(pdev, clk);
+
+	return 0;
+}
+
+static const struct of_device_id of_fixed_clk_ids[] = {
+	{
+		.compatible = "fixed-clock",
+	},
+	{ },
+};
+MODULE_DEVICE_TABLE(of, of_fixed_clk_ids);
+
+static struct platform_driver of_fixed_clk_driver = {
+	.driver = {
+		.name = "of_fixed_clk",
+		.of_match_table = of_fixed_clk_ids,
+	},
+	.probe = of_fixed_clk_probe,
+	.remove = of_fixed_clk_remove,
+};
+
+module_platform_driver(of_fixed_clk_driver);
 #endif
