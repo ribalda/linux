@@ -787,6 +787,7 @@ int of_clk_add_hw_provider(struct device_node *np,
 						 void *data),
 			   void *data);
 void of_clk_del_provider(struct device_node *np);
+bool of_clk_is_provider(struct device_node *np);
 struct clk *of_clk_src_simple_get(struct of_phandle_args *clkspec,
 				  void *data);
 struct clk_hw *of_clk_hw_simple_get(struct of_phandle_args *clkspec,
@@ -819,6 +820,10 @@ static inline int of_clk_add_hw_provider(struct device_node *np,
 	return 0;
 }
 static inline void of_clk_del_provider(struct device_node *np) {}
+static inline bool of_clk_is_provider(struct device_node *np)
+{
+	return false;
+}
 static inline struct clk *of_clk_src_simple_get(
 	struct of_phandle_args *clkspec, void *data)
 {

@@ -3120,6 +3120,26 @@ __of_clk_get_hw_from_provider(struct of_clk_provider *provider,
 	return hw;
 }
 
+/**
+ * of_clk_is_provider() - Reports if a device node is already a clk provider
+ * @np: Device node pointer under test
+ */
+bool of_clk_is_provider(struct device_node *np)
+{
+	struct of_clk_provider *cp;
+
+	mutex_lock(&of_clk_mutex);
+	list_for_each_entry(cp, &of_clk_providers, link) {
+		if (cp->node == np) {
+			mutex_unlock(&of_clk_mutex);
+			return true;
+		}
+	}
+	mutex_unlock(&of_clk_mutex);
+	return false;
+}
+EXPORT_SYMBOL_GPL(of_clk_is_provider);
+
 struct clk *__of_clk_get_from_provider(struct of_phandle_args *clkspec,
 				       const char *dev_id, const char *con_id)
 {
