@@ -13,6 +13,7 @@
 
 #include <linux/io.h>
 #include <linux/of.h>
+#include <linux/stringify.h>
 
 #ifdef CONFIG_COMMON_CLK
 
@@ -776,6 +777,55 @@ struct clk_hw_onecell_data {
 extern struct of_device_id __clk_of_table;
 
 #define CLK_OF_DECLARE(name, compat, fn) OF_DECLARE_1(clk, name, compat, fn)
+
+#define CLK_OF_DECLARE_DRIVER(cname, compat, f_setup, f_remove)		\
+	void cname##_init_clk_setup(struct device_node *node)		\
+	{								\
+		if (!f_setup(node))					\
+			of_node_set_flag(node, OF_POPULATED);		\
+	}								\
+	EXPORT_SYMBOL_GPL(cname##_init_clk_setup);			\
+	CLK_OF_DECLARE(cname, compat, cname##_init_clk_setup);		\
+									\
+	static int cname##_of_clk_remove(struct platform_device *pdev)	\
+	{								\
+		struct clk *clk = platform_get_drvdata(pdev);		\
+									\
+		if (clk)						\
+			return f_remove(clk);				\
+									\
+		return 0;						\
+	}								\
+									\
+	static int cname##_of_clk_probe(struct platform_device *pdev)	\
+	{								\
+		struct clk *clk;					\
+									\
+		clk = f_setup(pdev->dev.of_node);			\
+									\
+		if (IS_ERR(clk))					\
+			return PTR_ERR(clk);				\
+									\
+		platform_set_drvdata(pdev, clk);			\
+									\
+		return 0;						\
+	}								\
+									\
+	static const struct of_device_id cname##_ids[] = {		\
+		{ .compatible = compat },				\
+		{ },							\
+	};								\
+	MODULE_DEVICE_TABLE(of, cname##_ids);				\
+									\
+	static struct platform_driver cname##_driver = {		\
+		.driver = {						\
+			.name = __stringify(cname),			\
+			.of_match_table = cname##_ids,			\
+		},							\
+		.probe = cname##_of_clk_probe,				\
+		.remove = cname##_of_clk_remove,			\
+	};								\
+	module_platform_driver(cname##_driver);
 
 #ifdef CONFIG_OF
 int of_clk_add_provider(struct device_node *np,
