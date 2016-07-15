@@ -318,6 +318,10 @@ bool tpg_s_fourcc(struct tpg_data *tpg, u32 fourcc)
 		tpg->hmask[0] = ~1;
 		tpg->color_representation = TGP_COLOR_REPRESENTATION_YUV;
 		break;
+	case V4L2_PIX_FMT_HSV24:
+	case V4L2_PIX_FMT_HSV32:
+		tpg->color_representation = TGP_COLOR_REPRESENTATION_HSV;
+		break;
 	default:
 		return false;
 	}
@@ -351,6 +355,7 @@ bool tpg_s_fourcc(struct tpg_data *tpg, u32 fourcc)
 		break;
 	case V4L2_PIX_FMT_RGB24:
 	case V4L2_PIX_FMT_BGR24:
+	case V4L2_PIX_FMT_HSV24:
 		tpg->twopixelsize[0] = 2 * 3;
 		break;
 	case V4L2_PIX_FMT_BGR666:
@@ -361,6 +366,7 @@ bool tpg_s_fourcc(struct tpg_data *tpg, u32 fourcc)
 	case V4L2_PIX_FMT_ARGB32:
 	case V4L2_PIX_FMT_ABGR32:
 	case V4L2_PIX_FMT_YUV32:
+	case V4L2_PIX_FMT_HSV32:
 		tpg->twopixelsize[0] = 2 * 4;
 		break;
 	case V4L2_PIX_FMT_NV12:
@@ -408,6 +414,7 @@ bool tpg_s_fourcc(struct tpg_data *tpg, u32 fourcc)
 		tpg->twopixelsize[1] = 4;
 		break;
 	}
+
 	return true;
 }
 EXPORT_SYMBOL_GPL(tpg_s_fourcc);
@@ -488,6 +495,64 @@ static inline int linear_to_rec709(int v)
 {
 	v = clamp(v, 0, 0xff0);
 	return tpg_linear_to_rec709[v];
+}
+
+static void color_to_hsv(struct tpg_data *tpg, int r, int g, int b,
+			   int *h, int *s, int *v)
+{
+	int max_rgb, min_rgb, diff_rgb;
+	int aux;
+	int third;
+
+	r >>= 4;
+	g >>= 4;
+	b >>= 4;
+
+	/*V*/
+	max_rgb = max3(r, g, b);
+	*v = max_rgb;
+	if (!max_rgb) {
+		*h = 0;
+		*s = 0;
+		return;
+	}
+
+	/*S*/
+	min_rgb = min3(r, g, b);
+	diff_rgb = max_rgb - min_rgb;
+	aux = 255 * diff_rgb;
+	aux += max_rgb / 2;
+	aux /= max_rgb;
+	*s = aux;
+	if (!aux) {
+		*h = 0;
+		return;
+	}
+
+	/*H*/
+	if (max_rgb == r) {
+		aux =  g - b;
+		third = 0;
+	} else if (max_rgb == g) {
+		aux =  b - r;
+		third = 60;
+	} else {
+		aux =  r - g;
+		third = 120;
+	}
+
+	aux *= 30;
+	aux += diff_rgb / 2;
+	aux /= diff_rgb;
+	aux += third;
+
+	/*Clamp H*/
+	if (aux < 0)
+		aux += 180;
+	else if (aux > 180)
+		aux -= 180;
+	*h = aux;
+
 }
 
 static void rgb2ycbcr(const int m[3][3], int r, int g, int b,
@@ -829,7 +894,19 @@ static void precalculate_color(struct tpg_data *tpg, int k)
 		ycbcr_to_color(tpg, y, cb, cr, &r, &g, &b);
 	}
 
-	if (tpg->color_representation == TGP_COLOR_REPRESENTATION_YUV) {
+	switch (tpg->color_representation) {
+	case TGP_COLOR_REPRESENTATION_HSV:
+	{
+		int h, s, v;
+
+		color_to_hsv(tpg, r, g, b, &h, &s, &v);
+		tpg->colors[k][0] = h;
+		tpg->colors[k][1] = s;
+		tpg->colors[k][2] = v;
+		break;
+	}
+	case TGP_COLOR_REPRESENTATION_YUV:
+	{
 		/* Convert to YCbCr */
 		int y, cb, cr;
 
@@ -863,7 +940,10 @@ static void precalculate_color(struct tpg_data *tpg, int k)
 		tpg->colors[k][0] = y;
 		tpg->colors[k][1] = cb;
 		tpg->colors[k][2] = cr;
-	} else {
+		break;
+	}
+	case TGP_COLOR_REPRESENTATION_RGB:
+	{
 		if (tpg->real_quantization == V4L2_QUANTIZATION_LIM_RANGE) {
 			r = (r * 219) / 255 + (16 << 4);
 			g = (g * 219) / 255 + (16 << 4);
@@ -913,6 +993,8 @@ static void precalculate_color(struct tpg_data *tpg, int k)
 		tpg->colors[k][0] = r;
 		tpg->colors[k][1] = g;
 		tpg->colors[k][2] = b;
+		break;
+	}
 	}
 }
 
@@ -938,8 +1020,8 @@ static void gen_twopix(struct tpg_data *tpg,
 		alpha = 0;
 	if (color == TPG_COLOR_RANDOM)
 		precalculate_color(tpg, color);
-	r_y = tpg->colors[color][0]; /* R or precalculated Y */
-	g_u = tpg->colors[color][1]; /* G or precalculated U */
+	r_y = tpg->colors[color][0]; /* R or precalculated Y, H */
+	g_u = tpg->colors[color][1]; /* G or precalculated U, V */
 	b_v = tpg->colors[color][2]; /* B or precalculated V */
 
 	switch (tpg->fourcc) {
@@ -1121,6 +1203,7 @@ static void gen_twopix(struct tpg_data *tpg,
 		buf[0][offset + 1] = (g_u << 5) | b_v;
 		break;
 	case V4L2_PIX_FMT_RGB24:
+	case V4L2_PIX_FMT_HSV24:
 		buf[0][offset] = r_y;
 		buf[0][offset + 1] = g_u;
 		buf[0][offset + 2] = b_v;
@@ -1138,6 +1221,7 @@ static void gen_twopix(struct tpg_data *tpg,
 		break;
 	case V4L2_PIX_FMT_RGB32:
 	case V4L2_PIX_FMT_XRGB32:
+	case V4L2_PIX_FMT_HSV32:
 		alpha = 0;
 		/* fall through */
 	case V4L2_PIX_FMT_YUV32:
@@ -1896,6 +1980,8 @@ static const char *tpg_color_representation_str(enum tgp_color_representation
 {
 	switch (color_representation) {
 
+	case TGP_COLOR_REPRESENTATION_HSV:
+		return "HSV";
 	case TGP_COLOR_REPRESENTATION_YUV:
 		return "YCbCr";
 	case TGP_COLOR_REPRESENTATION_RGB:

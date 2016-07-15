@@ -90,6 +90,7 @@ enum tpg_move_mode {
 enum tgp_color_representation {
 	TGP_COLOR_REPRESENTATION_RGB,
 	TGP_COLOR_REPRESENTATION_YUV,
+	TGP_COLOR_REPRESENTATION_HSV,
 };
 
 extern const char * const tpg_aspect_strings[];
