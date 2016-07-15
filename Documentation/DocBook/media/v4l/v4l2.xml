@@ -117,6 +117,17 @@ Remote Controller chapter.</contrib>
 	  </address>
 	</affiliation>
       </author>
+
+      <author>
+	<firstname>Ricardo</firstname>
+	<surname>Ribalda</surname>
+	<contrib>HSV formats and minor fixes.</contrib>
+	<affiliation>
+	  <address>
+	    <email>ricardo.ribalda@gmail.com</email>
+	  </address>
+	</affiliation>
+      </author>
     </authorgroup>
 
     <copyright>
