@@ -1740,6 +1740,19 @@ extended control <constant>V4L2_CID_MPEG_STREAM_TYPE</constant>, see
     </table>
   </section>
 
+  <section id="hsv-formats">
+    <title>HSV Formats</title>
+
+    <para> These formats store the color information of the image
+in a geometrical representation. The colors are mapped into a
+cylinder, where the angle is the HUE, the height is the VALUE
+and the distance to the center is the SATURATION. This is a very
+useful format for image segmentation algorithms. </para>
+
+    &packed-hsv;
+
+  </section>
+
   <section id="sdr-formats">
     <title>SDR Formats</title>
 
