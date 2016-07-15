@@ -237,13 +237,13 @@ bool tpg_s_fourcc(struct tpg_data *tpg, u32 fourcc)
 	case V4L2_PIX_FMT_GREY:
 	case V4L2_PIX_FMT_Y16:
 	case V4L2_PIX_FMT_Y16_BE:
-		tpg->is_yuv = false;
+		tpg->color_representation = TGP_COLOR_REPRESENTATION_RGB;
 		break;
 	case V4L2_PIX_FMT_YUV444:
 	case V4L2_PIX_FMT_YUV555:
 	case V4L2_PIX_FMT_YUV565:
 	case V4L2_PIX_FMT_YUV32:
-		tpg->is_yuv = true;
+		tpg->color_representation = TGP_COLOR_REPRESENTATION_YUV;
 		break;
 	case V4L2_PIX_FMT_YUV420M:
 	case V4L2_PIX_FMT_YVU420M:
@@ -256,7 +256,7 @@ bool tpg_s_fourcc(struct tpg_data *tpg, u32 fourcc)
 		tpg->hdownsampling[1] = 2;
 		tpg->hdownsampling[2] = 2;
 		tpg->planes = 3;
-		tpg->is_yuv = true;
+		tpg->color_representation = TGP_COLOR_REPRESENTATION_YUV;
 		break;
 	case V4L2_PIX_FMT_YUV422M:
 	case V4L2_PIX_FMT_YVU422M:
@@ -268,7 +268,7 @@ bool tpg_s_fourcc(struct tpg_data *tpg, u32 fourcc)
 		tpg->hdownsampling[1] = 2;
 		tpg->hdownsampling[2] = 2;
 		tpg->planes = 3;
-		tpg->is_yuv = true;
+		tpg->color_representation = TGP_COLOR_REPRESENTATION_YUV;
 		break;
 	case V4L2_PIX_FMT_NV16M:
 	case V4L2_PIX_FMT_NV61M:
@@ -280,7 +280,7 @@ bool tpg_s_fourcc(struct tpg_data *tpg, u32 fourcc)
 		tpg->hdownsampling[1] = 1;
 		tpg->hmask[1] = ~1;
 		tpg->planes = 2;
-		tpg->is_yuv = true;
+		tpg->color_representation = TGP_COLOR_REPRESENTATION_YUV;
 		break;
 	case V4L2_PIX_FMT_NV12M:
 	case V4L2_PIX_FMT_NV21M:
@@ -292,7 +292,7 @@ bool tpg_s_fourcc(struct tpg_data *tpg, u32 fourcc)
 		tpg->hdownsampling[1] = 1;
 		tpg->hmask[1] = ~1;
 		tpg->planes = 2;
-		tpg->is_yuv = true;
+		tpg->color_representation = TGP_COLOR_REPRESENTATION_YUV;
 		break;
 	case V4L2_PIX_FMT_YUV444M:
 	case V4L2_PIX_FMT_YVU444M:
@@ -302,21 +302,21 @@ bool tpg_s_fourcc(struct tpg_data *tpg, u32 fourcc)
 		tpg->vdownsampling[2] = 1;
 		tpg->hdownsampling[1] = 1;
 		tpg->hdownsampling[2] = 1;
-		tpg->is_yuv = true;
+		tpg->color_representation = TGP_COLOR_REPRESENTATION_YUV;
 		break;
 	case V4L2_PIX_FMT_NV24:
 	case V4L2_PIX_FMT_NV42:
 		tpg->vdownsampling[1] = 1;
 		tpg->hdownsampling[1] = 1;
 		tpg->planes = 2;
-		tpg->is_yuv = true;
+		tpg->color_representation = TGP_COLOR_REPRESENTATION_YUV;
 		break;
 	case V4L2_PIX_FMT_YUYV:
 	case V4L2_PIX_FMT_UYVY:
 	case V4L2_PIX_FMT_YVYU:
 	case V4L2_PIX_FMT_VYUY:
 		tpg->hmask[0] = ~1;
-		tpg->is_yuv = true;
+		tpg->color_representation = TGP_COLOR_REPRESENTATION_YUV;
 		break;
 	default:
 		return false;
@@ -820,7 +820,7 @@ static void precalculate_color(struct tpg_data *tpg, int k)
 
 		cb = (128 << 4) + (tmp_cb * tpg->contrast * tpg->saturation) / (128 * 128);
 		cr = (128 << 4) + (tmp_cr * tpg->contrast * tpg->saturation) / (128 * 128);
-		if (tpg->is_yuv) {
+		if (tpg->color_representation == TGP_COLOR_REPRESENTATION_YUV) {
 			tpg->colors[k][0] = clamp(y >> 4, 1, 254);
 			tpg->colors[k][1] = clamp(cb >> 4, 1, 254);
 			tpg->colors[k][2] = clamp(cr >> 4, 1, 254);
@@ -829,7 +829,7 @@ static void precalculate_color(struct tpg_data *tpg, int k)
 		ycbcr_to_color(tpg, y, cb, cr, &r, &g, &b);
 	}
 
-	if (tpg->is_yuv) {
+	if (tpg->color_representation == TGP_COLOR_REPRESENTATION_YUV) {
 		/* Convert to YCbCr */
 		int y, cb, cr;
 
@@ -1842,7 +1842,9 @@ static void tpg_recalc(struct tpg_data *tpg)
 
 		if (tpg->quantization == V4L2_QUANTIZATION_DEFAULT)
 			tpg->real_quantization =
-				V4L2_MAP_QUANTIZATION_DEFAULT(!tpg->is_yuv,
+				V4L2_MAP_QUANTIZATION_DEFAULT(
+					tpg->color_representation ==
+						TGP_COLOR_REPRESENTATION_RGB,
 					tpg->colorspace, tpg->real_ycbcr_enc);
 
 		tpg_precalculate_colors(tpg);
@@ -1889,11 +1891,25 @@ static int tpg_pattern_avg(const struct tpg_data *tpg,
 	return -1;
 }
 
+static const char *tpg_color_representation_str(enum tgp_color_representation
+						 color_representation)
+{
+	switch (color_representation) {
+
+	case TGP_COLOR_REPRESENTATION_YUV:
+		return "YCbCr";
+	case TGP_COLOR_REPRESENTATION_RGB:
+	default:
+		return "RGB";
+
+	}
+}
+
 void tpg_log_status(struct tpg_data *tpg)
 {
 	pr_info("tpg source WxH: %ux%u (%s)\n",
-			tpg->src_width, tpg->src_height,
-			tpg->is_yuv ? "YCbCr" : "RGB");
+		tpg->src_width, tpg->src_height,
+		tpg_color_representation_str(tpg->color_representation));
 	pr_info("tpg field: %u\n", tpg->field);
 	pr_info("tpg crop: %ux%u@%dx%d\n", tpg->crop.width, tpg->crop.height,
 			tpg->crop.left, tpg->crop.top);
