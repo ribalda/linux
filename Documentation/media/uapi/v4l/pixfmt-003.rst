@@ -141,6 +141,16 @@ describing all planes of that format.
 
     -  .. row 10
 
+       -  enum :ref:`v4l2_hsv_encoding <v4l2-hsv-encoding>`
+
+       -  ``hsv_enc``
+
+       -  This information supplements the ``colorspace`` and must be set by
+	  the driver for capture streams and by the application for output
+	  streams, see :ref:`colorspaces`.
+
+    -  .. row 11
+
        -  enum :ref:`v4l2_quantization <v4l2-quantization>`
 
        -  ``quantization``
@@ -149,7 +159,7 @@ describing all planes of that format.
 	  the driver for capture streams and by the application for output
 	  streams, see :ref:`colorspaces`.
 
-    -  .. row 11
+    -  .. row 12
 
        -  enum :ref:`v4l2_xfer_func <v4l2-xfer-func>`
 
@@ -159,7 +169,7 @@ describing all planes of that format.
 	  the driver for capture streams and by the application for output
 	  streams, see :ref:`colorspaces`.
 
-    -  .. row 12
+    -  .. row 13
 
        -  __u8
 

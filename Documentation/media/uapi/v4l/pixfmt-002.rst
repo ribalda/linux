@@ -180,6 +180,16 @@ Single-planar format structure
 
     -  .. row 13
 
+       -  enum :ref:`v4l2_hsv_encoding <v4l2-hsv-encoding>`
+
+       -  ``hsv_enc``
+
+       -  This information supplements the ``colorspace`` and must be set by
+	  the driver for capture streams and by the application for output
+	  streams, see :ref:`colorspaces`.
+
+    -  .. row 14
+
        -  enum :ref:`v4l2_quantization <v4l2-quantization>`
 
        -  ``quantization``
@@ -188,7 +198,7 @@ Single-planar format structure
 	  the driver for capture streams and by the application for output
 	  streams, see :ref:`colorspaces`.
 
-    -  .. row 14
+    -  .. row 15
 
        -  enum :ref:`v4l2_xfer_func <v4l2-xfer-func>`
 
