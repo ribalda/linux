@@ -19,9 +19,18 @@ colorspace field of struct :ref:`v4l2_pix_format <v4l2-pix-format>`
 or struct :ref:`v4l2_pix_format_mplane <v4l2-pix-format-mplane>`
 needs to be filled in.
 
+.. _hsv-colorspace:
+
+On :ref:`HSV formats <hsv-formats>` the *Hue* is defined as the angle on
+the cylindrical color representation. Usually this angle is measured in
+degrees, i.e. 0-360. When we map this angle value into 8 bits, there are
+two basic ways to do it: Divide the angular value by 2 (0-179), or use the
+whole range, 0-255, dividing the angular value by 1.41. The
+`v4l2_hsv_encoding <v4l2-hsv-encoding>` field specify which encoding is used.
+
 .. note:: The default R'G'B' quantization is full range for all
    colorspaces except for BT.2020 which uses limited range R'G'B'
-   quantization.
+   quantization. HSV formats are always full range.
 
 
 .. _v4l2-colorspace:
@@ -239,6 +248,34 @@ needs to be filled in.
        -  ``V4L2_YCBCR_ENC_SMPTE_240M``
 
        -  Use the SMPTE 240M Y'CbCr encoding.
+
+
+
+.. _v4l2-hsv-encoding:
+
+.. flat-table:: V4L2 HSV Encodings
+    :header-rows:  1
+    :stub-columns: 0
+
+
+    -  .. row 1
+
+       -  Identifier
+
+       -  Details
+
+    -  .. row 2
+
+       -  ``V4L2_HSV_ENC_180``
+
+       -  For the Hue, each LSB is two degrees.
+
+    -  .. row 3
+
+       -  ``V4L2_HSV_ENC_256``
+
+       -  For the Hue, the 360 degrees are mapped into 8 bits, i.e. each
+          LSB is roughly 1.41 degrees.
 
 
 
