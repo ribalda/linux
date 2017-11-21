@@ -3071,6 +3071,7 @@ D: Several AX.25 hacks
 N: Ricardo Ribalda Delgado
 E: ricardo.ribalda@gmail.com
 W: http://ribalda.com
+D: Xilinx QUAD SPI driver
 D: PLX USB338x driver
 D: PCA9634 driver
 D: Option GTM671WFS

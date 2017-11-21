@@ -4,6 +4,7 @@
  * Author: MontaVista Software, Inc.
  *	source@mvista.com
  *
+ * Copyright (C) 2015-2017 Ricardo Ribalda, Qtechnology A/S
  * Copyright (c) 2010 Secret Lab Technologies, Ltd.
  * Copyright (c) 2009 Intel Corporation
  * 2002-2007 (c) MontaVista Software, Inc.
