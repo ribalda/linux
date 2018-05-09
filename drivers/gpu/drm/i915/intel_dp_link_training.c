@@ -27,7 +27,7 @@ static void
 intel_dp_dump_link_status(const uint8_t link_status[DP_LINK_STATUS_SIZE])
 {
 
-	DRM_DEBUG_KMS("ln0_1:0x%x ln2_3:0x%x align:0x%x sink:0x%x adj_req0_1:0x%x adj_req2_3:0x%x",
+	printk(KERN_ERR "ln0_1:0x%x ln2_3:0x%x align:0x%x sink:0x%x adj_req0_1:0x%x adj_req2_3:0x%x",
 		      link_status[0], link_status[1], link_status[2],
 		      link_status[3], link_status[4], link_status[5]);
 }
@@ -272,7 +272,7 @@ intel_dp_link_training_channel_equalization(struct intel_dp *intel_dp)
 		if (!drm_dp_clock_recovery_ok(link_status,
 					      intel_dp->lane_count)) {
 			intel_dp_dump_link_status(link_status);
-			DRM_DEBUG_KMS("Clock recovery check failed, cannot "
+			printk(KERN_ERR "Clock recovery check failed, cannot "
 				      "continue channel equalization\n");
 			break;
 		}
@@ -317,10 +317,18 @@ void
 intel_dp_start_link_train(struct intel_dp *intel_dp)
 {
 	struct intel_connector *intel_connector = intel_dp->attached_connector;
+	int tries;
 
-	if (!intel_dp_link_training_clock_recovery(intel_dp))
-		goto failure_handling;
-	if (!intel_dp_link_training_channel_equalization(intel_dp))
+	msleep(200);
+
+	for (tries = 0; tries < 5; tries++) {
+		if (!intel_dp_link_training_clock_recovery(intel_dp))
+			continue;
+		if (intel_dp_link_training_channel_equalization(intel_dp))
+			break;
+	}
+
+	if (tries == 5)
 		goto failure_handling;
 
 	DRM_DEBUG_KMS("[CONNECTOR:%d:%s] Link Training Passed at Link Rate = %d, Lane count = %d",
