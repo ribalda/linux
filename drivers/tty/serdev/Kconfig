@@ -21,4 +21,15 @@ config SERIAL_DEV_CTRL_TTYPORT
 	depends on SERIAL_DEV_BUS != m
 	default y
 
+config SERIAL_DEV_CTRL_TTYDEV
+	tristate "TTY port dynamically loaded by the Serial Device Bus"
+	help
+	  Say Y here if you want to create a bridge driver between the Serial
+	  device bus and the TTY chardevice. This driver can be dynamically
+	  loaded/unloaded by the Serial Device Bus.
+
+	  If unsure, say Y.
+	depends on SERIAL_DEV_CTRL_TTYPORT
+	default m
+
 endif
