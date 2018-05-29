@@ -276,6 +276,7 @@ struct device *serdev_tty_port_register(struct tty_port *port,
 	serport->tty_drv = drv;
 
 	ctrl->ops = &ctrl_ops;
+	ctrl->is_ttyport = true;
 
 	old_ops = port->client_ops;
 	port->client_ops = &client_ops;
