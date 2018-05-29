@@ -803,8 +803,10 @@ MODULE_DEVICE_TABLE(of, nokia_bluetooth_of_match);
 
 static struct serdev_device_id nokia_bluetooth_serdev_id[] = {
 	{ "hp4-bluetooth", },
+	{ "nokia-bluetooth", },
 	{}
 };
+MODULE_DEVICE_TABLE(serdev, nokia_bluetooth_serdev_id);
 
 static struct serdev_device_driver nokia_bluetooth_serdev_driver = {
 	.probe = nokia_bluetooth_serdev_probe,
