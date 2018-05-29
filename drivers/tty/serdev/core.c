@@ -79,8 +79,23 @@ static const struct device_type serdev_ctrl_type = {
 	.release	= serdev_ctrl_release,
 };
 
+static int serdev_match_id(const struct serdev_device_id *id,
+			   const struct serdev_device *sdev)
+{
+	while (id->name[0]) {
+		if (!strcmp(sdev->modalias, id->name))
+			return 1;
+		id++;
+	}
+
+	return 0;
+}
+
 static int serdev_device_match(struct device *dev, struct device_driver *drv)
 {
+	const struct serdev_device *sdev = to_serdev_device(dev);
+	const struct serdev_device_driver *sdrv = to_serdev_device_driver(drv);
+
 	if (!is_serdev_device(dev))
 		return 0;
 
@@ -88,7 +103,13 @@ static int serdev_device_match(struct device *dev, struct device_driver *drv)
 	if (acpi_driver_match_device(dev, drv))
 		return 1;
 
-	return of_driver_match_device(dev, drv);
+	if (of_driver_match_device(dev, drv))
+		return 1;
+
+	if (sdrv->id_table)
+		return serdev_match_id(sdrv->id_table, sdev);
+
+	return strcmp(sdev->modalias, drv->name) == 0;
 }
 
 /**
