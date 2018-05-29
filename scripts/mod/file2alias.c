@@ -955,6 +955,17 @@ static int do_i2c_entry(const char *filename, void *symval,
 }
 ADD_TO_DEVTABLE("i2c", i2c_device_id, do_i2c_entry);
 
+/* Looks like: serdev:S */
+static int do_serdev_entry(const char *filename, void *symval,
+			   char *alias)
+{
+	DEF_FIELD_ADDR(symval, serdev_device_id, name);
+	sprintf(alias, SERDEV_MODULE_PREFIX "%s", *name);
+
+	return 1;
+}
+ADD_TO_DEVTABLE("serdev", serdev_device_id, do_serdev_entry);
+
 /* Looks like: spi:S */
 static int do_spi_entry(const char *filename, void *symval,
 			char *alias)
