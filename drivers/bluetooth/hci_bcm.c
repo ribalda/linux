@@ -1325,6 +1325,11 @@ static const struct of_device_id bcm_bluetooth_of_match[] = {
 MODULE_DEVICE_TABLE(of, bcm_bluetooth_of_match);
 #endif
 
+static const struct serdev_device_id bcm_serdev_id[] = {
+	{ "bcm43438-bt", },
+	{}
+};
+
 static struct serdev_device_driver bcm_serdev_driver = {
 	.probe = bcm_serdev_probe,
 	.remove = bcm_serdev_remove,
@@ -1334,6 +1339,7 @@ static struct serdev_device_driver bcm_serdev_driver = {
 		.acpi_match_table = ACPI_PTR(bcm_acpi_match),
 		.pm = &bcm_pm_ops,
 	},
+	.id_table = bcm_serdev_id,
 };
 
 int __init bcm_init(void)
