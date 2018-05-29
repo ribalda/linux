@@ -776,6 +776,22 @@ static const struct of_device_id hci_ti_of_match[] = {
 };
 MODULE_DEVICE_TABLE(of, hci_ti_of_match);
 
+static struct serdev_device_id hci_ti_id[] = {
+	{ "cc2560", },
+	{ "wl1271-st", },
+	{ "wl1273-st", },
+	{ "wl1281-st", },
+	{ "wl1283-st", },
+	{ "wl1285-st", },
+	{ "wl1801-st", },
+	{ "wl1805-st", },
+	{ "wl1807-st", },
+	{ "wl1831-st", },
+	{ "wl1835-st", },
+	{ "wl1837-st", },
+	{},
+};
+
 static struct serdev_device_driver hci_ti_drv = {
 	.driver		= {
 		.name	= "hci-ti",
@@ -783,6 +799,7 @@ static struct serdev_device_driver hci_ti_drv = {
 	},
 	.probe	= hci_ti_probe,
 	.remove	= hci_ti_remove,
+	.id_table = hci_ti_id,
 };
 #else
 #define ll_setup NULL
