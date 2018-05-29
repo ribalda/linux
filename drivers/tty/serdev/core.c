@@ -619,6 +619,27 @@ static inline int acpi_serdev_register_devices(struct serdev_controller *ctrl)
 }
 #endif /* CONFIG_ACPI */
 
+
+#if IS_ENABLED(CONFIG_SERIAL_DEV_CTRL_TTYDEV)
+static int serdev_controller_add_ttydev(struct serdev_controller *ctrl)
+{
+	struct serdev_device *serdev;
+	int err;
+
+	serdev = serdev_device_alloc(ctrl);
+	if (!serdev)
+		return -ENOMEM;
+
+	strcpy(serdev->modalias, "ttydev");
+
+	err = serdev_device_add(serdev);
+	if (err)
+		serdev_device_put(serdev);
+
+	return err;
+}
+#endif
+
 /**
  * serdev_controller_add() - Add an serdev controller
  * @ctrl:	controller to be registered.
@@ -628,7 +649,7 @@ static inline int acpi_serdev_register_devices(struct serdev_controller *ctrl)
  */
 int serdev_controller_add(struct serdev_controller *ctrl)
 {
-	int ret_of, ret_acpi, ret;
+	int ret_of, ret_acpi, ret, ret_tty = -ENODEV;
 
 	/* Can't register until after driver model init */
 	if (WARN_ON(!is_registered))
@@ -640,9 +661,16 @@ int serdev_controller_add(struct serdev_controller *ctrl)
 
 	ret_of = of_serdev_register_devices(ctrl);
 	ret_acpi = acpi_serdev_register_devices(ctrl);
-	if (ret_of && ret_acpi) {
-		dev_dbg(&ctrl->dev, "no devices registered: of:%d acpi:%d\n",
-			ret_of, ret_acpi);
+
+#if IS_ENABLED(CONFIG_SERIAL_DEV_CTRL_TTYDEV)
+	if (ret_of && ret_acpi && ctrl->is_ttyport)
+		ret_tty = serdev_controller_add_ttydev(ctrl);
+#endif
+
+	if (ret_of && ret_acpi && ret_tty) {
+		dev_dbg(&ctrl->dev,
+			"no devices registered: of:%d acpi:%d tty:%d\n",
+			ret_of, ret_acpi, ret_tty);
 		ret = -ENODEV;
 		goto out_dev_del;
 	}
