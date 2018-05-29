@@ -116,6 +116,7 @@ struct serdev_controller {
 	unsigned int		nr;
 	struct serdev_device	*serdev;
 	const struct serdev_controller_ops *ops;
+	bool			is_ttyport;
 };
 
 static inline struct serdev_controller *to_serdev_controller(struct device *d)
