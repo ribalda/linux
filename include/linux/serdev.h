@@ -171,6 +171,9 @@ static inline void serdev_controller_put(struct serdev_controller *ctrl)
 		put_device(&ctrl->dev);
 }
 
+const struct serdev_device_id *
+serdev_match_id(const struct serdev_device_id *id,
+		const struct serdev_device *sdev);
 struct serdev_device *serdev_device_alloc(struct serdev_controller *);
 int serdev_device_add(struct serdev_device *);
 void serdev_device_remove(struct serdev_device *);
