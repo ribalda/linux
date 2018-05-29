@@ -1327,8 +1327,10 @@ MODULE_DEVICE_TABLE(of, bcm_bluetooth_of_match);
 
 static const struct serdev_device_id bcm_serdev_id[] = {
 	{ "bcm43438-bt", },
+	{ "hci_uart_bcm", },
 	{}
 };
+MODULE_DEVICE_TABLE(serdev, bcm_serdev_id);
 
 static struct serdev_device_driver bcm_serdev_driver = {
 	.probe = bcm_serdev_probe,
