@@ -654,14 +654,30 @@ static const struct serdev_device_ops rave_sp_serdev_device_ops = {
 	.write_wakeup = serdev_device_write_wakeup,
 };
 
+static struct serdev_device_id rave_sp_serdev_id[] = {
+	{ "rave-sp", (kernel_ulong_t) &rave_sp_legacy},
+	{ "rave-sp-niu", (kernel_ulong_t) &rave_sp_legacy},
+	{ "rave-sp-mezz", (kernel_ulong_t) &rave_sp_legacy},
+	{ "rave-sp-esb", (kernel_ulong_t) &rave_sp_legacy},
+	{ "rave-sp-rdu1", (kernel_ulong_t) &rave_sp_rdu1},
+	{ "rave-sp-rdu2", (kernel_ulong_t) &rave_sp_rdu2},
+	{}
+};
+MODULE_DEVICE_TABLE(serdev, rave_sp_serdev_id);
+
 static int rave_sp_probe(struct serdev_device *serdev)
 {
 	struct device *dev = &serdev->dev;
+	const struct serdev_device_id *id;
 	struct rave_sp *sp;
 	u32 baud;
 	int ret;
 
-	if (of_property_read_u32(dev->of_node, "current-speed", &baud)) {
+	if (!dev->of_node) {
+		/* Baudrate at zii,rave-sp.txt */
+		baud = 1000000;
+	} else if (of_property_read_u32(dev->of_node,
+					"current-speed", &baud)) {
 		dev_err(dev,
 			"'current-speed' is not specified in device node\n");
 		return -EINVAL;
@@ -675,6 +691,12 @@ static int rave_sp_probe(struct serdev_device *serdev)
 	dev_set_drvdata(dev, sp);
 
 	sp->variant = of_device_get_match_data(dev);
+	if (!sp->variant) {
+		id = serdev_match_id(rave_sp_serdev_id, serdev);
+		if (id)
+			sp->variant = (const struct rave_sp_variant *)
+							id->driver_data;
+	}
 	if (!sp->variant)
 		return -ENODEV;
 
@@ -700,6 +722,7 @@ static struct serdev_device_driver rave_sp_drv = {
 		.name		= "rave-sp",
 		.of_match_table	= rave_sp_dt_ids,
 	},
+	.id_table = rave_sp_serdev_id,
 };
 module_serdev_device_driver(rave_sp_drv);
 
