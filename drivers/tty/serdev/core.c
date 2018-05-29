@@ -75,7 +75,67 @@ static void serdev_ctrl_release(struct device *dev)
 	kfree(ctrl);
 }
 
+static ssize_t
+new_device_store(struct device *dev, struct device_attribute *attr,
+			const char *buf, size_t count)
+{
+	struct serdev_controller *ctrl = to_serdev_controller(dev);
+	struct serdev_device *serdev;
+	int err;
+	char *nline;
+
+	serdev = serdev_device_alloc(ctrl);
+	if (!serdev)
+		return -ENOMEM;
+
+	nline = strchr(buf, '\n');
+	if (nline)
+		*nline = '\0';
+
+	strncpy(serdev->modalias, buf, SERDEV_NAME_SIZE);
+
+	err = serdev_device_add(serdev);
+	if (err) {
+		serdev_device_put(serdev);
+		return err;
+	}
+
+	return count;
+}
+static DEVICE_ATTR_WO(new_device);
+
+static ssize_t
+delete_device_store(struct device *dev, struct device_attribute *attr,
+			   const char *buf, size_t count)
+{
+	struct serdev_controller *ctrl = to_serdev_controller(dev);
+	struct serdev_device *serdev = ctrl->serdev;
+	char *nline;
+
+	nline = strchr(buf, '\n');
+	if (nline)
+		*nline = '\0';
+
+	if (!ctrl->serdev ||
+	    strncmp(dev_name(&serdev->dev), buf, SERDEV_NAME_SIZE))
+		return -ENODEV;
+
+	serdev_device_remove(serdev);
+
+	return count;
+}
+static DEVICE_ATTR_IGNORE_LOCKDEP(delete_device, 0200, NULL,
+				  delete_device_store);
+
+static struct attribute *serdev_ctrl_attrs[] = {
+	&dev_attr_new_device.attr,
+	&dev_attr_delete_device.attr,
+	NULL
+};
+ATTRIBUTE_GROUPS(serdev_ctrl);
+
 static const struct device_type serdev_ctrl_type = {
+	.groups		= serdev_ctrl_groups,
 	.release	= serdev_ctrl_release,
 };
 
