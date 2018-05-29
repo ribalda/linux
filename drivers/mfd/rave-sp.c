@@ -694,12 +694,19 @@ static int rave_sp_probe(struct serdev_device *serdev)
 
 MODULE_DEVICE_TABLE(of, rave_sp_dt_ids);
 
+static struct serdev_device_id rave_sp_serdev_id[] = {
+	{ "rave-sp", },
+	{},
+};
+MODULE_DEVICE_TABLE(serdev, rave_sp_serdev_id);
+
 static struct serdev_device_driver rave_sp_drv = {
 	.probe			= rave_sp_probe,
 	.driver = {
 		.name		= "rave-sp",
 		.of_match_table	= rave_sp_dt_ids,
 	},
+	.id_table = rave_sp_serdev_id,
 };
 module_serdev_device_driver(rave_sp_drv);
 
