@@ -801,6 +801,11 @@ static const struct of_device_id nokia_bluetooth_of_match[] = {
 MODULE_DEVICE_TABLE(of, nokia_bluetooth_of_match);
 #endif
 
+static struct serdev_device_id nokia_bluetooth_serdev_id[] = {
+	{ "hp4-bluetooth", },
+	{},
+};
+
 static struct serdev_device_driver nokia_bluetooth_serdev_driver = {
 	.probe = nokia_bluetooth_serdev_probe,
 	.remove = nokia_bluetooth_serdev_remove,
@@ -809,6 +814,7 @@ static struct serdev_device_driver nokia_bluetooth_serdev_driver = {
 		.pm = &nokia_bluetooth_pm_ops,
 		.of_match_table = of_match_ptr(nokia_bluetooth_of_match),
 	},
+	.id_table = nokia_bluetooth_serdev_id,
 };
 
 module_serdev_device_driver(nokia_bluetooth_serdev_driver);
