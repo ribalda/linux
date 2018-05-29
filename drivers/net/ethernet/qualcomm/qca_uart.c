@@ -405,6 +405,12 @@ static void qca_uart_remove(struct serdev_device *serdev)
 	free_netdev(qca->net_dev);
 }
 
+static struct serdev_device_id qca_uart_serdev_id[] = {
+	{ QCAUART_DRV_NAME, },
+	{}
+};
+MODULE_DEVICE_TABLE(serdev, qca_uart_serdev_id);
+
 static struct serdev_device_driver qca_uart_driver = {
 	.probe = qca_uart_probe,
 	.remove = qca_uart_remove,
@@ -412,6 +418,7 @@ static struct serdev_device_driver qca_uart_driver = {
 		.name = QCAUART_DRV_NAME,
 		.of_match_table = of_match_ptr(qca_uart_of_match),
 	},
+	.id_table = qca_uart_serdev_id,
 };
 
 module_serdev_device_driver(qca_uart_driver);
