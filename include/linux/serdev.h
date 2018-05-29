@@ -15,6 +15,7 @@
 
 #include <linux/types.h>
 #include <linux/device.h>
+#include <linux/mod_devicetable.h>
 #include <linux/termios.h>
 #include <linux/delay.h>
 
@@ -68,6 +69,7 @@ static inline struct serdev_device *to_serdev_device(struct device *d)
  * @remove:	unbinds this driver from the serdev device.
  */
 struct serdev_device_driver {
+	const struct serdev_device_id *id_table;
 	struct device_driver driver;
 	int	(*probe)(struct serdev_device *);
 	void	(*remove)(struct serdev_device *);
