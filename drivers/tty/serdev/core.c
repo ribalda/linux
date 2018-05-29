@@ -46,6 +46,7 @@ ATTRIBUTE_GROUPS(serdev_device);
 static int serdev_device_uevent(struct device *dev, struct kobj_uevent_env *env)
 {
 	int rc;
+	struct serdev_device *serdev = to_serdev_device(dev);
 
 	/* TODO: platform modalias */
 
@@ -53,7 +54,11 @@ static int serdev_device_uevent(struct device *dev, struct kobj_uevent_env *env)
 	if (rc != -ENODEV)
 		return rc;
 
-	return of_device_uevent_modalias(dev, env);
+	if (rc != of_device_uevent_modalias(dev, env))
+		return rc;
+
+	return add_uevent_var(env, "MODALIAS=%s%s", SERDEV_MODULE_PREFIX,
+						    serdev->modalias);
 }
 
 static void serdev_device_release(struct device *dev)
