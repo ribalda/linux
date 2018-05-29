@@ -789,8 +789,10 @@ static struct serdev_device_id hci_ti_id[] = {
 	{ "wl1831-st", },
 	{ "wl1835-st", },
 	{ "wl1837-st", },
+	{ "hci-ti", },
 	{},
 };
+MODULE_DEVICE_TABLE(serdev, hci_ti_id);
 
 static struct serdev_device_driver hci_ti_drv = {
 	.driver		= {
