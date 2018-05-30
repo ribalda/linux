@@ -182,6 +182,8 @@ void serdev_device_remove(struct serdev_device *);
 struct serdev_controller *serdev_controller_alloc(struct device *, size_t);
 int serdev_controller_add(struct serdev_controller *);
 void serdev_controller_remove(struct serdev_controller *);
+void serdev_put_controller(struct serdev_controller *ctrl);
+struct serdev_controller *serdev_get_controller(int nr);
 
 static inline void serdev_controller_write_wakeup(struct serdev_controller *ctrl)
 {

@@ -724,6 +724,29 @@ void serdev_controller_remove(struct serdev_controller *ctrl)
 }
 EXPORT_SYMBOL_GPL(serdev_controller_remove);
 
+struct serdev_controller *serdev_get_controller(int nr)
+{
+	struct serdev_controller *ctrl;
+
+	ctrl = idr_find(&ctrl_idr, nr);
+	if (!ctrl)
+		return NULL;
+
+	get_device(&ctrl->dev);
+
+	return ctrl;
+}
+EXPORT_SYMBOL_GPL(serdev_get_controller);
+
+void serdev_put_controller(struct serdev_controller *ctrl)
+{
+	if (!ctrl)
+		return;
+
+	put_device(&ctrl->dev);
+}
+EXPORT_SYMBOL_GPL(serdev_put_controller);
+
 /**
  * serdev_driver_register() - Register client driver with serdev core
  * @sdrv:	client driver to be associated with client-device.
