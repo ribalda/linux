@@ -17,7 +17,7 @@
 #include <linux/slab.h>
 
 static bool is_registered;
-static DEFINE_IDA(ctrl_ida);
+static DEFINE_IDR(ctrl_idr);
 
 static ssize_t modalias_show(struct device *dev,
 			     struct device_attribute *attr, char *buf)
@@ -81,7 +81,7 @@ static bool is_serdev_device(const struct device *dev)
 static void serdev_ctrl_release(struct device *dev)
 {
 	struct serdev_controller *ctrl = to_serdev_controller(dev);
-	ida_simple_remove(&ctrl_ida, ctrl->nr);
+	idr_remove(&ctrl_idr, ctrl->nr);
 	kfree(ctrl);
 }
 
@@ -499,7 +499,7 @@ struct serdev_controller *serdev_controller_alloc(struct device *parent,
 	if (!ctrl)
 		return NULL;
 
-	id = ida_simple_get(&ctrl_ida, 0, 0, GFP_KERNEL);
+	id = idr_alloc(&ctrl_idr, ctrl, 0, 0, GFP_KERNEL);
 	if (id < 0) {
 		dev_err(parent,
 			"unable to allocate serdev controller identifier.\n");
