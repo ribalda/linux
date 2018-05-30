@@ -630,8 +630,8 @@ static inline int acpi_serdev_register_devices(struct serdev_controller *ctrl)
 }
 #endif /* CONFIG_ACPI */
 
-#if IS_ENABLED(CONFIG_SERIAL_DEV_CTRL_TTYDEV)
-static int serdev_controller_add_ttydev(struct serdev_controller *ctrl)
+int serdev_controller_add_probed_device(struct serdev_controller *ctrl,
+					const char *name)
 {
 	struct serdev_device *serdev;
 	int err;
@@ -640,7 +640,7 @@ static int serdev_controller_add_ttydev(struct serdev_controller *ctrl)
 	if (!serdev)
 		return -ENOMEM;
 
-	strcpy(serdev->modalias, "ttydev");
+	strcpy(serdev->modalias, name);
 
 	err = serdev_device_add(serdev);
 	if (err)
@@ -648,7 +648,7 @@ static int serdev_controller_add_ttydev(struct serdev_controller *ctrl)
 
 	return err;
 }
-#endif
+EXPORT_SYMBOL_GPL(serdev_controller_add_probed_device);
 
 /**
  * serdev_controller_add() - Add an serdev controller
@@ -678,7 +678,7 @@ int serdev_controller_add(struct serdev_controller *ctrl)
 		goto out_dev_ok;
 
 #if IS_ENABLED(CONFIG_SERIAL_DEV_CTRL_TTYDEV)
-	ret_tty = serdev_controller_add_ttydev(ctrl);
+	ret_tty = serdev_controller_add_probed_device(ctrl, "ttydev");
 	if (!ret_tty)
 		goto out_dev_ok;
 #endif

@@ -184,6 +184,8 @@ int serdev_controller_add(struct serdev_controller *);
 void serdev_controller_remove(struct serdev_controller *);
 void serdev_put_controller(struct serdev_controller *ctrl);
 struct serdev_controller *serdev_get_controller(int nr);
+int serdev_controller_add_probed_device(struct serdev_controller *ctrl,
+					const char *name);
 
 static inline void serdev_controller_write_wakeup(struct serdev_controller *ctrl)
 {
