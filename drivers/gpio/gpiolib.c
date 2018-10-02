@@ -377,6 +377,9 @@ static int gpiochip_init_valid_mask(struct gpio_chip *gpiochip)
 	if (!gpiochip->valid_mask)
 		return -ENOMEM;
 
+	if (gpiochip->init_valid_mask)
+		return gpiochip->init_valid_mask(gpiochip);
+
 	return 0;
 }
 
