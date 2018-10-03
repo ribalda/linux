@@ -25,25 +25,25 @@
 #include <linux/platform_device.h>
 #include <linux/slab.h>
 #include <linux/types.h>
+#include "gpio-addr-flash.h"
 
 #define win_mask(x) ((BIT(x)) - 1)
 
 #define DRIVER_NAME "gpio-addr-flash"
 
+#define gf_map_info_to_state(mi) ((struct async_state *)(mi)->map_priv_1)
+
 /**
- * struct async_state - keep GPIO flash state
+ * struct async_state_pdev - Async state platform device
  *	@mtd:         MTD state for this mapping
  *	@map:         MTD map state for this flash
  *	@gpios:       Struct containing the array of GPIO descriptors
- *	@gpio_values: cached GPIO values
- *	@win_order:   dedicated memory size (if no GPIOs)
+ *	@state:       GPIO flash state
  */
-struct async_state {
+struct async_state_pdev {
 	struct mtd_info *mtd;
 	struct map_info map;
-	struct gpio_descs *gpios;
-	unsigned int gpio_values;
-	unsigned int win_order;
+	struct async_state state;
 };
 #define gf_map_info_to_state(mi) ((struct async_state *)(mi)->map_priv_1)
 
@@ -174,6 +174,31 @@ static void gf_copy_to(struct map_info *map, unsigned long to,
 static const char * const part_probe_types[] = {
 	"cmdlinepart", "RedBoot", NULL };
 
+int gpio_flash_probe_common(struct device *dev, struct async_state *state,
+			    struct map_info *map)
+{
+	if (!is_power_of_2(map->size)) {
+		dev_err(dev, "Window size must be aligned\n");
+		return -EIO;
+	}
+
+	state->gpios = devm_gpiod_get_array(dev, "addr", GPIOD_OUT_LOW);
+	if (IS_ERR(state->gpios))
+		return PTR_ERR(state->gpios);
+
+	state->win_order  = get_bitmask_order(map->size) - 1;
+	map->read       = gf_read;
+	map->copy_from  = gf_copy_from;
+	map->write      = gf_write;
+	map->copy_to    = gf_copy_to;
+	map->size       = BIT(state->win_order + state->gpios->ndescs);
+	map->phys	= NO_XIP;
+	map->map_priv_1 = (unsigned long)state;
+
+	return 0;
+}
+EXPORT_SYMBOL(gpio_flash_probe_common);
+
 /**
  * gpio_flash_probe() - setup a mapping for a GPIO assisted flash
  *	@pdev: platform device
@@ -210,7 +235,8 @@ static int gpio_flash_probe(struct platform_device *pdev)
 {
 	struct physmap_flash_data *pdata;
 	struct resource *memory;
-	struct async_state *state;
+	struct async_state_pdev *state_pdev;
+	int ret;
 
 	pdata = dev_get_platdata(&pdev->dev);
 	memory = platform_get_resource(pdev, IORESOURCE_MEM, 0);
@@ -218,40 +244,33 @@ static int gpio_flash_probe(struct platform_device *pdev)
 	if (!memory)
 		return -EINVAL;
 
-	state = devm_kzalloc(&pdev->dev, sizeof(*state), GFP_KERNEL);
-	if (!state)
+	state_pdev = devm_kzalloc(&pdev->dev, sizeof(*state_pdev), GFP_KERNEL);
+	if (!state_pdev)
 		return -ENOMEM;
 
-	state->gpios = devm_gpiod_get_array(&pdev->dev, "addr", GPIOD_OUT_LOW);
-	if (IS_ERR(state->gpios))
-		return PTR_ERR(state->gpios);
+	state_pdev->map.virt = devm_ioremap_resource(&pdev->dev, memory);
+	if (IS_ERR(state_pdev->map.virt))
+		return PTR_ERR(state_pdev->map.virt);
 
-	state->win_order      = get_bitmask_order(resource_size(memory)) - 1;
+	state_pdev->map.name       = DRIVER_NAME;
+	state_pdev->map.bankwidth  = pdata->width;
+	state_pdev->map.size       = resource_size(memory);
 
-	state->map.name       = DRIVER_NAME;
-	state->map.read       = gf_read;
-	state->map.copy_from  = gf_copy_from;
-	state->map.write      = gf_write;
-	state->map.copy_to    = gf_copy_to;
-	state->map.bankwidth  = pdata->width;
-	state->map.size       = BIT(state->win_order + state->gpios->ndescs);
-	state->map.virt	      = devm_ioremap_resource(&pdev->dev, memory);
-	if (IS_ERR(state->map.virt))
-		return PTR_ERR(state->map.virt);
+	ret = gpio_flash_probe_common(&pdev->dev, &state_pdev->state,
+				      &state_pdev->map);
+	if (ret)
+		return ret;
 
-	state->map.phys       = NO_XIP;
-	state->map.map_priv_1 = (unsigned long)state;
-
-	platform_set_drvdata(pdev, state);
+	platform_set_drvdata(pdev, state_pdev);
 
 	dev_notice(&pdev->dev, "probing %d-bit flash bus\n",
-		   state->map.bankwidth * 8);
-	state->mtd = do_map_probe(memory->name, &state->map);
-	if (!state->mtd)
+		   state_pdev->map.bankwidth * 8);
+	state_pdev->mtd = do_map_probe(memory->name, &state_pdev->map);
+	if (!state_pdev->mtd)
 		return -ENXIO;
-	state->mtd->dev.parent = &pdev->dev;
+	state_pdev->mtd->dev.parent = &pdev->dev;
 
-	mtd_device_parse_register(state->mtd, part_probe_types, NULL,
+	mtd_device_parse_register(state_pdev->mtd, part_probe_types, NULL,
 				  pdata->parts, pdata->nr_parts);
 
 	return 0;
@@ -259,10 +278,10 @@ static int gpio_flash_probe(struct platform_device *pdev)
 
 static int gpio_flash_remove(struct platform_device *pdev)
 {
-	struct async_state *state = platform_get_drvdata(pdev);
+	struct async_state_pdev *state_pdev = platform_get_drvdata(pdev);
 
-	mtd_device_unregister(state->mtd);
-	map_destroy(state->mtd);
+	mtd_device_unregister(state_pdev->mtd);
+	map_destroy(state_pdev->mtd);
 	return 0;
 }
 
