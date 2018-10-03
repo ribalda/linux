@@ -94,6 +94,14 @@ config MTD_PHYSMAP_OF_GEMINI
 	  platforms, some detection and setting up parallel mode on the
 	  external interface.
 
+config MTD_PHYSMAP_OF_GPIO
+	bool "GPIO-assisted OF-based physical memory map handling"
+	depends on MTD_PHYSMAP_OF
+	depends on MTD_GPIO_ADDR
+	help
+	  This provides some extra DT physmap parsing for flashes that are
+	  partially physically addressed and assisted by GPIOs.
+
 config MTD_PMC_MSP_EVM
 	tristate "CFI Flash device mapped on PMC-Sierra MSP"
 	depends on PMC_MSP && MTD_CFI
