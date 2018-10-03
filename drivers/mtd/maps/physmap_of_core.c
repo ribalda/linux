@@ -27,6 +27,7 @@
 #include <linux/slab.h>
 #include "physmap_of_gemini.h"
 #include "physmap_of_versatile.h"
+#include "gpio-addr-flash.h"
 
 struct of_flash_list {
 	struct mtd_info *mtd;
@@ -256,6 +257,10 @@ static int of_flash_probe(struct platform_device *dev)
 		}
 
 		simple_map_init(&info->list[i].map);
+
+		err = of_flash_probe_gpio(dev, dp, &info->list[i].map);
+		if (err)
+			goto err_out_release;
 
 		/*
 		 * On some platforms (e.g. MPC5200) a direct 1:1 mapping
