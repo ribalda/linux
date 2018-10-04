@@ -241,10 +241,10 @@ static int of_flash_probe(struct platform_device *dev)
 
 		err = of_flash_probe_gemini(dev, dp, &info->list[i].map);
 		if (err)
-			goto err_out;
+			goto err_out_release;
 		err = of_flash_probe_versatile(dev, dp, &info->list[i].map);
 		if (err)
-			goto err_out;
+			goto err_out_release;
 
 		err = -ENOMEM;
 		info->list[i].map.virt = ioremap(info->list[i].map.phys,
@@ -252,7 +252,7 @@ static int of_flash_probe(struct platform_device *dev)
 		if (!info->list[i].map.virt) {
 			dev_err(&dev->dev, "Failed to ioremap() flash"
 				" region\n");
-			goto err_out;
+			goto err_out_release;
 		}
 
 		simple_map_init(&info->list[i].map);
@@ -290,7 +290,7 @@ static int of_flash_probe(struct platform_device *dev)
 		err = -ENXIO;
 		if (!info->list[i].mtd) {
 			dev_err(&dev->dev, "do_map_probe() failed\n");
-			goto err_out;
+			goto err_out_iounmap;
 		} else {
 			info->list_size++;
 		}
@@ -329,6 +329,10 @@ static int of_flash_probe(struct platform_device *dev)
 
 	return 0;
 
+err_out_iounmap:
+	iounmap(info->list[i].map.virt);
+err_out_release:
+	release_mem_region(res.start, resource_size(&res));
 err_out:
 	kfree(mtd_list);
 err_flash_remove:
