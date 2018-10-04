@@ -40,8 +40,8 @@
 #include <linux/of_device.h>
 #include <linux/gpio/consumer.h>
 
-#include "physmap_of_gemini.h"
-#include "physmap_of_versatile.h"
+#include "physmap-gemini.h"
+#include "physmap-versatile.h"
 
 struct physmap_flash_info {
 	unsigned int		nmaps;
