@@ -38,7 +38,7 @@ static int physmap_flash_remove(struct platform_device *dev)
 	int i, err;
 
 	info = platform_get_drvdata(dev);
-	if (info == NULL)
+	if (!info)
 		return 0;
 
 	physmap_data = dev_get_platdata(&dev->dev);
@@ -53,7 +53,7 @@ static int physmap_flash_remove(struct platform_device *dev)
 	}
 
 	for (i = 0; i < info->nmaps; i++) {
-		if (info->mtds[i] != NULL)
+		if (!info->mtds[i])
 			map_destroy(info->mtds[i]);
 	}
 
@@ -90,10 +90,12 @@ static void physmap_set_vpp(struct map_info *map, int state)
 }
 
 static const char * const rom_probe_types[] = {
-	"cfi_probe", "jedec_probe", "qinfo_probe", "map_rom", NULL };
+	"cfi_probe", "jedec_probe", "qinfo_probe", "map_rom", NULL
+};
 
 static const char * const part_probe_types[] = {
-	"cmdlinepart", "RedBoot", "afs", NULL };
+	"cmdlinepart", "RedBoot", "afs", NULL
+};
 
 static int physmap_flash_probe(struct platform_device *dev)
 {
@@ -105,12 +107,11 @@ static int physmap_flash_probe(struct platform_device *dev)
 	int i;
 
 	physmap_data = dev_get_platdata(&dev->dev);
-	if (physmap_data == NULL)
+	if (!physmap_data)
 		return -ENODEV;
 
-	info = devm_kzalloc(&dev->dev, sizeof(struct physmap_flash_info),
-			    GFP_KERNEL);
-	if (info == NULL)
+	info = devm_kzalloc(&dev->dev, sizeof(*info), GFP_KERNEL);
+	if (!info)
 		return -ENOMEM;
 
 	while (platform_get_resource(dev, IORESOURCE_MEM, info->nmaps))
@@ -163,13 +164,16 @@ static int physmap_flash_probe(struct platform_device *dev)
 		simple_map_init(&info->maps[i]);
 
 		probe_type = rom_probe_types;
-		if (physmap_data->probe_type == NULL) {
-			for (; info->mtds[i] == NULL && *probe_type != NULL; probe_type++)
-				info->mtds[i] = do_map_probe(*probe_type, &info->maps[i]);
-		} else
-			info->mtds[i] = do_map_probe(physmap_data->probe_type, &info->maps[i]);
+		if (!physmap_data->probe_type) {
+			for (; !info->mtds[i] && *probe_type; probe_type++)
+				info->mtds[i] = do_map_probe(*probe_type,
+							     &info->maps[i]);
+		} else {
+			info->mtds[i] = do_map_probe(physmap_data->probe_type,
+						     &info->maps[i]);
+		}
 
-		if (info->mtds[i] == NULL) {
+		if (!info->mtds[i]) {
 			dev_err(&dev->dev, "map_probe failed\n");
 			err = -ENXIO;
 			goto err_out;
@@ -183,8 +187,9 @@ static int physmap_flash_probe(struct platform_device *dev)
 		/*
 		 * We detected multiple devices. Concatenate them together.
 		 */
-		info->cmtd = mtd_concat_create(info->mtds, info->nmaps, dev_name(&dev->dev));
-		if (info->cmtd == NULL)
+		info->cmtd = mtd_concat_create(info->mtds, info->nmaps,
+					       dev_name(&dev->dev));
+		if (!info->cmtd)
 			err = -ENXIO;
 	}
 	if (err)
@@ -229,7 +234,6 @@ static struct platform_driver physmap_flash_driver = {
 		.name	= "physmap-flash",
 	},
 };
-
 
 #ifdef CONFIG_MTD_PHYSMAP_COMPAT
 static struct physmap_flash_data physmap_flash_data = {
