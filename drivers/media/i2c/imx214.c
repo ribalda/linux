@@ -1027,7 +1027,7 @@ static int imx214_probe(struct i2c_client *client)
 	 */
 	imx214->exposure = v4l2_ctrl_new_std(&imx214->ctrls, &imx214_ctrl_ops,
 					     V4L2_CID_EXPOSURE,
-					     0, 0xffff, 1, 0x0c70);
+					     0, 3184, 1, 0x0c70);
 
 	ret = imx214->ctrls.error;
 	if (ret) {
