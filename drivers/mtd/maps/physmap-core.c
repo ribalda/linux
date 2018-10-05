@@ -69,8 +69,6 @@ static int physmap_flash_remove(struct platform_device *dev)
 	if (!info)
 		return 0;
 
-	physmap_data = dev_get_platdata(&dev->dev);
-
 	if (info->cmtd) {
 		err = mtd_device_unregister(info->cmtd);
 		if (err)
@@ -80,12 +78,12 @@ static int physmap_flash_remove(struct platform_device *dev)
 			mtd_concat_destroy(info->cmtd);
 	}
 
-	for (i = 0; i < info->nmaps; i++) {
-		if (!info->mtds[i])
+	for (i = 0; i < info->nmaps; i++)
+		if (info->mtds[i])
 			map_destroy(info->mtds[i]);
-	}
 
-	if (physmap_data->exit)
+	physmap_data = dev_get_platdata(&dev->dev);
+	if (physmap_data && physmap_data->exit)
 		physmap_data->exit(dev);
 
 	return 0;
@@ -456,18 +454,18 @@ static int physmap_flash_probe(struct platform_device *dev)
 	info->maps = devm_kzalloc(&dev->dev,
 				  sizeof(*info->maps) * info->nmaps,
 				  GFP_KERNEL);
-	if (info->maps)
+	if (!info->maps)
 		return -ENOMEM;
 
 	info->mtds = devm_kzalloc(&dev->dev,
 				  sizeof(*info->mtds) * info->nmaps,
 				  GFP_KERNEL);
-	if (info->mtds)
+	if (!info->mtds)
 		return -ENOMEM;
 
 	platform_set_drvdata(dev, info);
 
-	info->gpios = devm_gpiod_get_array_optional(&dev->dev, "addr-gpios",
+	info->gpios = devm_gpiod_get_array_optional(&dev->dev, "addr",
 						    GPIOD_OUT_LOW);
 	if (IS_ERR(info->gpios))
 		return PTR_ERR(info->gpios);
@@ -480,14 +478,6 @@ static int physmap_flash_probe(struct platform_device *dev)
 	err = physmap_flash_of_init(dev);
 	if (err)
 		err = physmap_flash_pdata_init(dev);
-
-	if (err)
-		return err;
-
-	err = physmap_flash_of_init(dev);
-	if (err)
-		err = physmap_flash_pdata_init(dev);
-
 	if (err)
 		return err;
 
@@ -509,7 +499,6 @@ static int physmap_flash_probe(struct platform_device *dev)
 		if (!info->maps[i].phys)
 			info->maps[i].phys = res->start;
 
-		info->maps[i].size = resource_size(res);
 		info->win_order = get_bitmask_order(resource_size(res)) - 1;
 		info->maps[i].size = BIT(info->win_order +
 					 (info->gpios ?
