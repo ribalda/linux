@@ -3789,10 +3789,12 @@ static void devm_of_clk_release_provider(struct device *dev, void *res)
 	of_clk_del_provider(*(struct device_node **)res);
 }
 
-int devm_of_clk_add_hw_provider(struct device *dev,
-			struct clk_hw *(*get)(struct of_phandle_args *clkspec,
-					      void *data),
-			void *data)
+static int __devm_of_clk_add_provider(struct device *dev,
+		struct clk *(*clk_src_get)(struct of_phandle_args *clkspec,
+					   void *data),
+		struct clk_hw *(*get)(struct of_phandle_args *clkspec,
+				      void *data),
+		void *data)
 {
 	struct device_node **ptr, *np;
 	int ret;
@@ -3803,7 +3805,7 @@ int devm_of_clk_add_hw_provider(struct device *dev,
 		return -ENOMEM;
 
 	np = dev->of_node;
-	ret = of_clk_add_hw_provider(np, get, data);
+	ret = __of_clk_add_provider(np, clk_src_get, get, data);
 	if (!ret) {
 		*ptr = np;
 		devres_add(dev, ptr);
@@ -3812,6 +3814,23 @@ int devm_of_clk_add_hw_provider(struct device *dev,
 	}
 
 	return ret;
+}
+
+int devm_of_clk_add_provider(struct device *dev,
+		struct clk *(*clk_src_get)(struct of_phandle_args *clkspec,
+					   void *data),
+		void *data)
+{
+	return __devm_of_clk_add_provider(dev, clk_src_get, NULL, data);
+}
+EXPORT_SYMBOL_GPL(devm_of_clk_add_provider);
+
+int devm_of_clk_add_hw_provider(struct device *dev,
+			struct clk_hw *(*get)(struct of_phandle_args *clkspec,
+					      void *data),
+			void *data)
+{
+	return __devm_of_clk_add_provider(dev, NULL, get, data);
 }
 EXPORT_SYMBOL_GPL(devm_of_clk_add_hw_provider);
 

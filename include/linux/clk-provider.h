@@ -905,6 +905,10 @@ int of_clk_add_hw_provider(struct device_node *np,
 			   struct clk_hw *(*get)(struct of_phandle_args *clkspec,
 						 void *data),
 			   void *data);
+int devm_of_clk_add_provider(struct device *dev,
+		struct clk *(*clk_src_get)(struct of_phandle_args *clkspec,
+					   void *data),
+		void *data);
 int devm_of_clk_add_hw_provider(struct device *dev,
 			   struct clk_hw *(*get)(struct of_phandle_args *clkspec,
 						 void *data),
@@ -936,6 +940,13 @@ static inline int of_clk_add_hw_provider(struct device_node *np,
 			struct clk_hw *(*get)(struct of_phandle_args *clkspec,
 					      void *data),
 			void *data)
+{
+	return 0;
+}
+static inline int devm_of_clk_add_provider(struct device *dev,
+		struct clk *(*clk_src_get)(struct of_phandle_args *clkspec,
+					   void *data),
+		void *data)
 {
 	return 0;
 }
