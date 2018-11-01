@@ -252,7 +252,7 @@ static int gpio_clk_driver_probe(struct platform_device *pdev)
 	if (IS_ERR(clk))
 		return PTR_ERR(clk);
 
-	return of_clk_add_provider(node, of_clk_src_simple_get, clk);
+	return devm_of_clk_add_provider(&pdev->dev, of_clk_src_simple_get, clk);
 }
 
 static const struct of_device_id gpio_clk_match_table[] = {
