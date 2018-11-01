@@ -158,7 +158,8 @@ void clk_hw_unregister_fixed_rate(struct clk_hw *hw)
 EXPORT_SYMBOL_GPL(clk_hw_unregister_fixed_rate);
 
 #ifdef CONFIG_OF
-static struct clk *_of_fixed_clk_setup(struct device_node *node)
+static struct clk *_of_fixed_clk_setup(struct device *dev,
+				       struct device_node *node)
 {
 	struct clk *clk;
 	const char *clk_name = node->name;
@@ -173,12 +174,16 @@ static struct clk *_of_fixed_clk_setup(struct device_node *node)
 
 	of_property_read_string(node, "clock-output-names", &clk_name);
 
-	clk = clk_register_fixed_rate_with_accuracy(NULL, clk_name, NULL,
+	clk = clk_register_fixed_rate_with_accuracy(dev, clk_name, NULL,
 						    0, rate, accuracy);
 	if (IS_ERR(clk))
 		return clk;
 
-	ret = of_clk_add_provider(node, of_clk_src_simple_get, clk);
+	if (dev)
+		ret = devm_of_clk_add_provider(dev, of_clk_src_simple_get, clk);
+	else
+		ret = of_clk_add_provider(node, of_clk_src_simple_get, clk);
+
 	if (ret) {
 		clk_unregister(clk);
 		return ERR_PTR(ret);
@@ -192,7 +197,7 @@ static struct clk *_of_fixed_clk_setup(struct device_node *node)
  */
 void __init of_fixed_clk_setup(struct device_node *node)
 {
-	_of_fixed_clk_setup(node);
+	_of_fixed_clk_setup(NULL, node);
 }
 CLK_OF_DECLARE(fixed_clk, "fixed-clock", of_fixed_clk_setup);
 
@@ -200,7 +205,6 @@ static int of_fixed_clk_remove(struct platform_device *pdev)
 {
 	struct clk *clk = platform_get_drvdata(pdev);
 
-	of_clk_del_provider(pdev->dev.of_node);
 	clk_unregister_fixed_rate(clk);
 
 	return 0;
@@ -214,7 +218,7 @@ static int of_fixed_clk_probe(struct platform_device *pdev)
 	 * This function is not executed when of_fixed_clk_setup
 	 * succeeded.
 	 */
-	clk = _of_fixed_clk_setup(pdev->dev.of_node);
+	clk = _of_fixed_clk_setup(&pdev->dev, pdev->dev.of_node);
 	if (IS_ERR(clk))
 		return PTR_ERR(clk);
 
