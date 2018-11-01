@@ -3723,15 +3723,11 @@ of_clk_hw_onecell_get(struct of_phandle_args *clkspec, void *data)
 }
 EXPORT_SYMBOL_GPL(of_clk_hw_onecell_get);
 
-/**
- * of_clk_add_provider() - Register a clock provider for a node
- * @np: Device node pointer associated with clock provider
- * @clk_src_get: callback for decoding clock
- * @data: context pointer for @clk_src_get callback.
- */
-int of_clk_add_provider(struct device_node *np,
+static int __of_clk_add_provider(struct device_node *np,
 			struct clk *(*clk_src_get)(struct of_phandle_args *clkspec,
 						   void *data),
+			struct clk_hw *(*get)(struct of_phandle_args *clkspec,
+						 void *data),
 			void *data)
 {
 	struct of_clk_provider *cp;
@@ -3744,17 +3740,32 @@ int of_clk_add_provider(struct device_node *np,
 	cp->node = of_node_get(np);
 	cp->data = data;
 	cp->get = clk_src_get;
+	cp->get_hw = get;
 
 	mutex_lock(&of_clk_mutex);
 	list_add(&cp->link, &of_clk_providers);
 	mutex_unlock(&of_clk_mutex);
-	pr_debug("Added clock from %pOF\n", np);
+	pr_debug("Added clock%s from %pOF\n", get?"_hw provider":"", np);
 
 	ret = of_clk_set_defaults(np, true);
 	if (ret < 0)
 		of_clk_del_provider(np);
 
 	return ret;
+}
+
+/**
+ * of_clk_add_provider() - Register a clock provider for a node
+ * @np: Device node pointer associated with clock provider
+ * @clk_src_get: callback for decoding clock
+ * @data: context pointer for @clk_src_get callback.
+ */
+int of_clk_add_provider(struct device_node *np,
+		struct clk *(*clk_src_get)(struct of_phandle_args *clkspec,
+					   void *data),
+		void *data)
+{
+	return  __of_clk_add_provider(np, clk_src_get, NULL, data);
 }
 EXPORT_SYMBOL_GPL(of_clk_add_provider);
 
@@ -3769,27 +3780,7 @@ int of_clk_add_hw_provider(struct device_node *np,
 						 void *data),
 			   void *data)
 {
-	struct of_clk_provider *cp;
-	int ret;
-
-	cp = kzalloc(sizeof(*cp), GFP_KERNEL);
-	if (!cp)
-		return -ENOMEM;
-
-	cp->node = of_node_get(np);
-	cp->data = data;
-	cp->get_hw = get;
-
-	mutex_lock(&of_clk_mutex);
-	list_add(&cp->link, &of_clk_providers);
-	mutex_unlock(&of_clk_mutex);
-	pr_debug("Added clk_hw provider from %pOF\n", np);
-
-	ret = of_clk_set_defaults(np, true);
-	if (ret < 0)
-		of_clk_del_provider(np);
-
-	return ret;
+	return  __of_clk_add_provider(np, NULL, get, data);
 }
 EXPORT_SYMBOL_GPL(of_clk_add_hw_provider);
 
