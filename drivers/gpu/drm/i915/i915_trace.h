@@ -977,5 +977,6 @@ DEFINE_EVENT(i915_context, i915_context_free,
 
 /* This part must be outside protection */
 #undef TRACE_INCLUDE_PATH
-#define TRACE_INCLUDE_PATH ../../drivers/gpu/drm/i915
+//#define TRACE_INCLUDE_PATH ../../drivers/gpu/drm/i915
+#define TRACE_INCLUDE_PATH /home/ricardo/hacking/kernel/drivers/gpu/drm/i915
 #include <trace/define_trace.h>
