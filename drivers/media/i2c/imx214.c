@@ -47,6 +47,7 @@ struct imx214 {
 	struct v4l2_ctrl *pixel_rate;
 	struct v4l2_ctrl *link_freq;
 	struct v4l2_ctrl *exposure;
+	struct v4l2_ctrl *unit_size;
 
 	struct regulator_bulk_data	supplies[IMX214_NUM_SUPPLIES];
 
@@ -941,6 +942,26 @@ error:
 	return ret;
 }
 
+static void unit_size_init(const struct v4l2_ctrl *ctrl, u32 idx,
+		     union v4l2_ctrl_ptr ptr)
+{
+	ptr.p_area->width = 1120;
+	ptr.p_area->height = 1120;
+}
+
+static const struct v4l2_ctrl_type_ops unit_size_ops = {
+	.init = unit_size_init,
+};
+
+static struct v4l2_ctrl *new_unit_size_ctrl(struct v4l2_ctrl_handler *handler)
+{
+	static struct v4l2_ctrl_config ctrl = {
+		.id = V4L2_CID_UNIT_CELL_SIZE,
+		.type_ops = &unit_size_ops,
+	};
+
+	return v4l2_ctrl_new_custom(handler, &ctrl, NULL);
+}
 static int imx214_probe(struct i2c_client *client)
 {
 	struct device *dev = &client->dev;
@@ -1028,6 +1049,8 @@ static int imx214_probe(struct i2c_client *client)
 	imx214->exposure = v4l2_ctrl_new_std(&imx214->ctrls, &imx214_ctrl_ops,
 					     V4L2_CID_EXPOSURE,
 					     0, 3184, 1, 0x0c70);
+
+	imx214->unit_size = new_unit_size_ctrl(&imx214->ctrls);
 
 	ret = imx214->ctrls.error;
 	if (ret) {
