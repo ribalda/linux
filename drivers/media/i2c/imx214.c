@@ -942,32 +942,16 @@ error:
 	return ret;
 }
 
-static void unit_size_init(const struct v4l2_ctrl *ctrl, u32 idx,
-		     union v4l2_ctrl_ptr ptr)
-{
-	ptr.p_area->width = 1120;
-	ptr.p_area->height = 1120;
-}
-
-static const struct v4l2_ctrl_type_ops unit_size_ops = {
-	.init = unit_size_init,
-};
-
-static struct v4l2_ctrl *new_unit_size_ctrl(struct v4l2_ctrl_handler *handler)
-{
-	static struct v4l2_ctrl_config ctrl = {
-		.id = V4L2_CID_UNIT_CELL_SIZE,
-		.type_ops = &unit_size_ops,
-	};
-
-	return v4l2_ctrl_new_custom(handler, &ctrl, NULL);
-}
 static int imx214_probe(struct i2c_client *client)
 {
 	struct device *dev = &client->dev;
 	struct imx214 *imx214;
 	static const s64 link_freq[] = {
 		IMX214_DEFAULT_LINK_FREQ,
+	};
+	struct v4l2_area unit_size = {
+		.width = 1120,
+		.height = 1120,
 	};
 	int ret;
 
@@ -1050,7 +1034,10 @@ static int imx214_probe(struct i2c_client *client)
 					     V4L2_CID_EXPOSURE,
 					     0, 3184, 1, 0x0c70);
 
-	imx214->unit_size = new_unit_size_ctrl(&imx214->ctrls);
+	imx214->unit_size = v4l2_ctrl_new_area(&imx214->ctrls,
+					       &imx214_ctrl_ops,
+					       V4L2_CID_UNIT_CELL_SIZE,
+					       &unit_size);
 
 	ret = imx214->ctrls.error;
 	if (ret) {
