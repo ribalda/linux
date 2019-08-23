@@ -2684,6 +2684,30 @@ struct v4l2_ctrl *v4l2_ctrl_new_int_menu(struct v4l2_ctrl_handler *hdl,
 }
 EXPORT_SYMBOL(v4l2_ctrl_new_int_menu);
 
+static void area_init(const struct v4l2_ctrl *ctrl, u32 idx,
+		union v4l2_ctrl_ptr ptr)
+{
+	memcpy(ptr.p_area, ctrl->priv, sizeof(*ptr.p_area));
+}
+
+static const struct v4l2_ctrl_type_ops area_ops = {
+	.init = area_init,
+};
+
+/* Helper function for area controls */
+struct v4l2_ctrl *v4l2_ctrl_new_area(struct v4l2_ctrl_handler *hdl,
+				     const struct v4l2_ctrl_ops *ops,
+				     u32 id, const struct v4l2_area *area)
+{
+	static struct v4l2_ctrl_config ctrl = {
+		.id = V4L2_CID_UNIT_CELL_SIZE,
+		.type_ops = &area_ops,
+	};
+
+	return v4l2_ctrl_new_custom(hdl, &ctrl, (void *)area);
+}
+EXPORT_SYMBOL(v4l2_ctrl_new_area);
+
 /* Add the controls from another handler to our own. */
 int v4l2_ctrl_add_handler(struct v4l2_ctrl_handler *hdl,
 			  struct v4l2_ctrl_handler *add,
