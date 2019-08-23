@@ -149,6 +149,15 @@ Integer menu controls with a driver specific menu can be added by calling
 			const struct v4l2_ctrl_ops *ops,
 			u32 id, s32 max, s32 def, const s64 *qmenu_int);
 
+Area controls can be added by calling
+:c:func:`v4l2_ctrl_new_area`:
+
+.. code-block:: c
+
+	struct v4l2_ctrl *v4l2_ctrl_new_area(struct v4l2_ctrl_handler *hdl,
+			const struct v4l2_ctrl_ops *ops,
+			u32 id, const struct v4l2_area *area);
+
 These functions are typically called right after the
 :c:func:`v4l2_ctrl_handler_init`:
 
