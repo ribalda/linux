@@ -670,6 +670,22 @@ struct v4l2_ctrl *v4l2_ctrl_new_int_menu(struct v4l2_ctrl_handler *hdl,
 					 const s64 *qmenu_int);
 
 /**
+ * v4l2_ctrl_new_area() - Allocate and initialize a V4L2_CTRL_TYPE_AREA control.
+ *
+ * @hdl:	The control handler.
+ * @ops:	The control ops.
+ * @id:	The control ID.
+ * @area:	The width and height of the area in a struct v4l2_area.
+ *
+ * If the &v4l2_ctrl struct could not be allocated then NULL is returned
+ * and @hdl->error is set to the error code (if it wasn't set already).
+ */
+
+struct v4l2_ctrl *v4l2_ctrl_new_area(struct v4l2_ctrl_handler *hdl,
+				     const struct v4l2_ctrl_ops *ops,
+				     u32 id, const struct v4l2_area *area);
+
+/**
  * typedef v4l2_ctrl_filter - Typedef to define the filter function to be
  *	used when adding a control handler.
  *

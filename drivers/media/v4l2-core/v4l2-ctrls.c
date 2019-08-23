@@ -4030,6 +4030,31 @@ static int set_ctrl(struct v4l2_fh *fh, struct v4l2_ctrl *ctrl, u32 ch_flags)
 	return try_or_set_cluster(fh, master, true, ch_flags);
 }
 
+/* Helper function for area controls */
+struct v4l2_ctrl *v4l2_ctrl_new_area(struct v4l2_ctrl_handler *hdl,
+				     const struct v4l2_ctrl_ops *ops,
+				     u32 id, const struct v4l2_area *area)
+{
+	static struct v4l2_ctrl_config ctrl = {};
+	struct v4l2_ctrl *c;
+	int ret;
+
+	ctrl.id = id;
+	c = v4l2_ctrl_new_custom(hdl, &ctrl, (void *)area);
+	if (!c)
+		return NULL;
+
+	memcpy(c->p_new.p_area, area, sizeof(*area));
+	ret = set_ctrl(NULL, c, 0);
+	if (ret){
+		hdl->error = ret;
+		return NULL;
+	}
+
+	return c;
+}
+EXPORT_SYMBOL(v4l2_ctrl_new_area);
+
 /* Helper function for VIDIOC_S_CTRL compatibility */
 static int set_ctrl_lock(struct v4l2_fh *fh, struct v4l2_ctrl *ctrl,
 			 struct v4l2_ext_control *c)
