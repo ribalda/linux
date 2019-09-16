@@ -256,6 +256,7 @@ struct v4l2_ctrl {
 		s32 val;
 	} cur;
 
+	union v4l2_ctrl_ptr p_def;
 	union v4l2_ctrl_ptr p_new;
 	union v4l2_ctrl_ptr p_cur;
 };
@@ -647,6 +648,23 @@ struct v4l2_ctrl *v4l2_ctrl_new_std_menu_items(struct v4l2_ctrl_handler *hdl,
 					       u32 id, u8 max,
 					       u64 mask, u8 def,
 					       const char * const *qmenu);
+/**
+ * v4l2_ctrl_new_std_compound() - Allocate and initialize a new standard V4L2
+ *      compound control.
+ *
+ * @hdl:	The control handler.
+ * @ops:	The control ops.
+ * @id:		The control ID.
+ * @p_def:	The control's p_def value.
+ *
+ * Sames as v4l2_ctrl_new_std(), but with support to compound controls, thanks to
+ * the @p_def field.
+ *
+ */
+struct v4l2_ctrl *v4l2_ctrl_new_std_compound(struct v4l2_ctrl_handler *hdl,
+				    const struct v4l2_ctrl_ops *ops, u32 id,
+				    const union v4l2_ctrl_ptr p_def);
+
 
 /**
  * v4l2_ctrl_new_int_menu() - Create a new standard V4L2 integer menu control.
@@ -668,22 +686,6 @@ struct v4l2_ctrl *v4l2_ctrl_new_int_menu(struct v4l2_ctrl_handler *hdl,
 					 const struct v4l2_ctrl_ops *ops,
 					 u32 id, u8 max, u8 def,
 					 const s64 *qmenu_int);
-
-/**
- * v4l2_ctrl_new_area() - Allocate and initialize a V4L2_CTRL_TYPE_AREA control.
- *
- * @hdl:	The control handler.
- * @ops:	The control ops.
- * @id:	The control ID.
- * @area:	The width and height of the area in a struct v4l2_area.
- *
- * If the &v4l2_ctrl struct could not be allocated then NULL is returned
- * and @hdl->error is set to the error code (if it wasn't set already).
- */
-
-struct v4l2_ctrl *v4l2_ctrl_new_area(struct v4l2_ctrl_handler *hdl,
-				     const struct v4l2_ctrl_ops *ops,
-				     u32 id, const struct v4l2_area *area);
 
 /**
  * typedef v4l2_ctrl_filter - Typedef to define the filter function to be
