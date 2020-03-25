@@ -403,7 +403,7 @@ int rkisp1_stats_register(struct rkisp1_device *rkisp1)
 	rkisp1_init_stats(stats);
 	video_set_drvdata(vdev, stats);
 
-	node->pad.flags = MEDIA_PAD_FL_SINK;
+	node->pad.flags = MEDIA_PAD_FL_SINK | MEDIA_PAD_FL_METADATA;
 	ret = media_entity_pads_init(&vdev->entity, 1, &node->pad);
 	if (ret)
 		goto err_mutex_destroy;

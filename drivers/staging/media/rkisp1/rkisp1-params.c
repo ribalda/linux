@@ -1568,7 +1568,7 @@ int rkisp1_params_register(struct rkisp1_device *rkisp1)
 	rkisp1_init_params(params);
 	video_set_drvdata(vdev, params);
 
-	node->pad.flags = MEDIA_PAD_FL_SOURCE;
+	node->pad.flags = MEDIA_PAD_FL_SOURCE | MEDIA_PAD_FL_METADATA;
 	ret = media_entity_pads_init(&vdev->entity, 1, &node->pad);
 	if (ret)
 		return ret;
