@@ -1187,6 +1187,7 @@ static void rkisp1_isp_isr_meas_config(struct rkisp1_params *params,
 
 static void rkisp1_params_apply_params_cfg(struct rkisp1_params *params,
 					   unsigned int frame_sequence)
+	__must_hold(&params->config_lock)
 {
 	struct rkisp1_params_cfg *new_params;
 	struct rkisp1_buffer *cur_buf = NULL;
