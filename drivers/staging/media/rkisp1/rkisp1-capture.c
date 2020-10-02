@@ -1269,8 +1269,16 @@ static int rkisp1_capture_link_validate(struct media_link *link)
 
 	if (sd_fmt.format.height != cap->pix.fmt.height ||
 	    sd_fmt.format.width != cap->pix.fmt.width ||
-	    sd_fmt.format.code != fmt->mbus)
+	    sd_fmt.format.code != fmt->mbus) {
+		dev_warn(cap->rkisp1->dev,
+			 "%s: failed for '%s' sd:cap: height %u:%u, width %u:%u mbus: 0x%x:0x%x\n",
+			 __func__,
+			 cap->vnode.vdev.name,
+			 sd_fmt.format.height, cap->pix.fmt.height,
+			 sd_fmt.format.width, cap->pix.fmt.width,
+			 sd_fmt.format.code, fmt->mbus);
 		return -EPIPE;
+	}
 
 	return 0;
 }
