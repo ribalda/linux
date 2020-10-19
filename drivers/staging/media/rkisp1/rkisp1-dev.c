@@ -254,8 +254,8 @@ static int rkisp1_subdev_notifier(struct rkisp1_device *rkisp1)
 		struct rkisp1_sensor_async *rk_asd = NULL;
 		struct fwnode_handle *ep;
 
-		ep = fwnode_graph_get_endpoint_by_id(dev_fwnode(rkisp1->dev),
-			0, next_id, FWNODE_GRAPH_ENDPOINT_NEXT);
+		ep = fwnode_graph_get_endpoint_by_id(dev_fwnode(rkisp1->dev), 0, next_id,
+						     FWNODE_GRAPH_ENDPOINT_NEXT);
 		if (!ep)
 			break;
 
