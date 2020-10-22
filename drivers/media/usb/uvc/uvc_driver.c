@@ -7,6 +7,7 @@
  */
 
 #include <linux/atomic.h>
+#include <linux/gpio/consumer.h>
 #include <linux/kernel.h>
 #include <linux/list.h>
 #include <linux/module.h>
@@ -1440,6 +1441,58 @@ next_descriptor:
 	return 0;
 }
 
+static int uvc_gpio_get_cur(struct uvc_entity *entity, u8 cs, void *data, u16 size)
+{
+	if ((cs != UVC_CT_PRIVACY_CONTROL) || (size < 1))
+		return -EINVAL;
+
+	*(uint8_t *)data = gpiod_get_value(entity->gpio.gpio_privacy);
+	return 0;
+}
+
+static int uvc_gpio_get_info(struct uvc_entity *entity, u8 cs, u8 *caps)
+{
+
+	if (cs != UVC_CT_PRIVACY_CONTROL)
+		return -EINVAL;
+
+	*caps = UVC_CONTROL_CAP_GET | UVC_CONTROL_CAP_AUTOUPDATE;
+	return 0;
+}
+
+static int uvc_parse_gpio(struct uvc_device *dev)
+{
+	struct uvc_entity *unit;
+	struct gpio_desc *gpio_privacy;
+	int irq;
+	int ret;
+
+	gpio_privacy = devm_gpiod_get_optional(&dev->udev->dev, "privacy", GPIOD_IN);
+
+	if (IS_ERR(gpio_privacy))
+		return PTR_ERR(gpio_privacy);
+
+	if (!gpio_privacy)
+		return 0;
+
+	unit = uvc_alloc_entity(UVC_GPIO_UNIT, 0xff, 1, 2);
+	if (!unit)
+		return -ENOMEM;
+
+	unit->gpio.gpio_privacy = gpio_privacy;
+	unit->gpio.bControlSize = 1;
+	unit->gpio.bmControls = (u8 *)unit + sizeof(*unit);
+	unit->gpio.bmControls[0] = 1;
+	unit->get_cur = uvc_gpio_get_cur;
+	unit->get_info = uvc_gpio_get_info;
+
+	sprintf(unit->name, "GPIO Unit");
+
+	list_add_tail(&unit->list, &dev->entities);
+
+	return 0;
+}
+
 /* ------------------------------------------------------------------------
  * UVC device scan
  */
@@ -1529,6 +1582,12 @@ static int uvc_scan_chain_entity(struct uvc_video_chain *chain,
 	case UVC_OTT_MEDIA_TRANSPORT_OUTPUT:
 		if (uvc_trace_param & UVC_TRACE_PROBE)
 			printk(KERN_CONT " OT %d", entity->id);
+
+		break;
+
+	case UVC_GPIO_UNIT:
+		if (uvc_trace_param & UVC_TRACE_PROBE)
+			printk(KERN_CONT " GPIO %d", entity->id);
 
 		break;
 
@@ -1929,6 +1988,13 @@ static int uvc_scan_device(struct uvc_device *dev)
 		return -1;
 	}
 
+	/* Add GPIO entities to the first_chain */
+	chain = list_first_entry(&dev->chains, struct uvc_video_chain, list);
+	list_for_each_entry(term, &dev->entities, list) {
+		if (UVC_ENTITY_TYPE(term) == UVC_GPIO_UNIT)
+			list_add_tail(&term->chain, &chain->entities);
+	}
+
 	return 0;
 }
 
@@ -2258,6 +2324,12 @@ static int uvc_probe(struct usb_interface *intf,
 	if (uvc_parse_control(dev) < 0) {
 		uvc_trace(UVC_TRACE_PROBE, "Unable to parse UVC "
 			"descriptors.\n");
+		goto error;
+	}
+
+	/* Parse the associated GPIOs */
+	if (uvc_parse_gpio(dev) < 0) {
+		uvc_trace(UVC_TRACE_PROBE, "Unable to parse UVC GPIOs\n");
 		goto error;
 	}
 
