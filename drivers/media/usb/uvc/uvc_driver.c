@@ -1460,6 +1460,25 @@ static int uvc_gpio_get_info(struct uvc_entity *entity, u8 cs, u8 *caps)
 	return 0;
 }
 
+static irqreturn_t uvc_privacy_gpio_irq(int irq, void *data)
+{
+	struct uvc_device *dev = data;
+	struct uvc_video_chain *chain;
+	struct uvc_entity *term;
+	u8 value;
+
+	list_for_each_entry(chain, &dev->chains, list) {
+		list_for_each_entry(term, &dev->entities, list) {
+			if (UVC_ENTITY_TYPE(term) == UVC_GPIO_UNIT) {
+				value = gpiod_get_value(term->gpio.gpio_privacy);
+				uvc_ctrl_status_event(NULL, chain, term->controls, &value);
+			}
+		}
+	}
+
+	return IRQ_HANDLED;
+}
+
 static int uvc_parse_gpio(struct uvc_device *dev)
 {
 	struct uvc_entity *unit;
@@ -1489,6 +1508,20 @@ static int uvc_parse_gpio(struct uvc_device *dev)
 	sprintf(unit->name, "GPIO Unit");
 
 	list_add_tail(&unit->list, &dev->entities);
+
+	irq = gpiod_to_irq(gpio_privacy);
+
+	if (irq == -EPROBE_DEFER)
+		return -EPROBE_DEFER;
+
+	if (irq < 0)
+		return 0;
+
+	ret = devm_request_irq(&dev->udev->dev, irq, uvc_privacy_gpio_irq,
+			       IRQF_TRIGGER_FALLING | IRQF_TRIGGER_RISING,
+			       "uvc_privacy_gpio", dev);
+	if (ret < 0)
+		dev_warn(&dev->udev->dev, "Unable to request uvc_privacy_gpio irq. Continuing\n" );
 
 	return 0;
 }
