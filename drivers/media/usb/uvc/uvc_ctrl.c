@@ -1001,10 +1001,19 @@ static int __uvc_ctrl_get(struct uvc_video_chain *chain,
 		return -EACCES;
 
 	if (!ctrl->loaded) {
-		ret = uvc_query_ctrl(chain->dev, UVC_GET_CUR, ctrl->entity->id,
-				chain->dev->intfnum, ctrl->info.selector,
-				uvc_ctrl_data(ctrl, UVC_CTRL_DATA_CURRENT),
-				ctrl->info.size);
+		if (ctrl->info.flags & UVC_CTRL_FLAG_ENTITY_GET_CUR) {
+			if (!ctrl->entity->get_cur)
+				return -EINVAL;
+			ret = ctrl->entity->get_cur(ctrl->entity,
+					ctrl->info.selector,
+					uvc_ctrl_data(ctrl, UVC_CTRL_DATA_CURRENT),
+					ctrl->info.size);
+		} else {
+			ret = uvc_query_ctrl(chain->dev, UVC_GET_CUR, ctrl->entity->id,
+					     chain->dev->intfnum, ctrl->info.selector,
+					     uvc_ctrl_data(ctrl, UVC_CTRL_DATA_CURRENT),
+					     ctrl->info.size);
+		}
 		if (ret < 0)
 			return ret;
 
