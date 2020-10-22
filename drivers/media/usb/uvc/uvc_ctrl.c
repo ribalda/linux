@@ -830,6 +830,7 @@ static const u8 uvc_processing_guid[16] = UVC_GUID_UVC_PROCESSING;
 static const u8 uvc_camera_guid[16] = UVC_GUID_UVC_CAMERA;
 static const u8 uvc_media_transport_input_guid[16] =
 	UVC_GUID_UVC_MEDIA_TRANSPORT_INPUT;
+static const u8 uvc_gpio_guid[16] = UVC_GUID_EXT_GPIO_CONTROLLER;
 
 static int uvc_entity_match_guid(const struct uvc_entity *entity,
 	const u8 guid[16])
@@ -847,6 +848,9 @@ static int uvc_entity_match_guid(const struct uvc_entity *entity,
 	case UVC_VC_EXTENSION_UNIT:
 		return memcmp(entity->extension.guidExtensionCode,
 			      guid, 16) == 0;
+
+	case UVC_GPIO_UNIT:
+		return memcmp(uvc_gpio_guid, guid, 16) == 0;
 
 	default:
 		return 0;
