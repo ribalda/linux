@@ -16,7 +16,8 @@ struct acpi_device;
  * @flags: GPIO initialization flags
  * @gpioint: if %true this GPIO is of type GpioInt otherwise type is GpioIo
  * @pin_config: pin bias as provided by ACPI
- * @polarity: interrupt polarity as provided by ACPI
+ * @irq_polarity: interrupt polarity as provided by ACPI
+ * @active_low: pin polarity as provided by ACPI
  * @triggering: triggering type as provided by ACPI
  * @quirks: Linux specific quirks as provided by struct acpi_gpio_mapping
  */
@@ -25,7 +26,8 @@ struct acpi_gpio_info {
 	enum gpiod_flags flags;
 	bool gpioint;
 	int pin_config;
-	int polarity;
+	int irq_polarity;
+	bool active_low;
 	int triggering;
 	unsigned int quirks;
 };

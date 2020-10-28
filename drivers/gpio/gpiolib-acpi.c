@@ -624,7 +624,7 @@ int acpi_gpio_update_gpiod_lookup_flags(unsigned long *lookupflags,
 		break;
 	}
 
-	if (info->polarity == GPIO_ACTIVE_LOW)
+	if (info->active_low)
 		*lookupflags |= GPIO_ACTIVE_LOW;
 
 	return 0;
@@ -665,6 +665,7 @@ static int acpi_populate_gpio_lookup(struct acpi_resource *ares, void *data)
 					      agpio->pin_table[pin_index]);
 		lookup->info.pin_config = agpio->pin_config;
 		lookup->info.gpioint = gpioint;
+		lookup->info.active_low = !!lookup->active_low;
 
 		/*
 		 * Polarity and triggering are only specified for GpioInt
@@ -675,11 +676,10 @@ static int acpi_populate_gpio_lookup(struct acpi_resource *ares, void *data)
 		 */
 		if (lookup->info.gpioint) {
 			lookup->info.flags = GPIOD_IN;
-			lookup->info.polarity = agpio->polarity;
+			lookup->info.irq_polarity = agpio->polarity;
 			lookup->info.triggering = agpio->triggering;
 		} else {
 			lookup->info.flags = acpi_gpio_to_gpiod_flags(agpio);
-			lookup->info.polarity = lookup->active_low;
 		}
 	}
 
@@ -958,7 +958,7 @@ int acpi_dev_gpio_irq_get(struct acpi_device *adev, int index)
 				return ret;
 
 			irq_flags = acpi_dev_get_irq_type(info.triggering,
-							  info.polarity);
+							  info.irq_polarity);
 
 			/* Set type if specified and different than the current one */
 			if (irq_flags != IRQ_TYPE_NONE &&
