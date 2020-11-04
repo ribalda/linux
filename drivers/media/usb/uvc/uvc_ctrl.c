@@ -1326,8 +1326,8 @@ static void __uvc_ctrl_status_event_work(struct uvc_device *dev,
 	w->urb->interval = dev->int_ep->desc.bInterval;
 	ret = usb_submit_urb(w->urb, GFP_KERNEL);
 	if (ret < 0)
-		uvc_printk(KERN_ERR, "Failed to resubmit status URB (%d).\n",
-			   ret);
+		dev_err(&dev->udev->dev,
+			"Failed to resubmit status URB (%d).\n", ret);
 }
 
 static void uvc_ctrl_status_event_work(struct work_struct *work)
@@ -2038,10 +2038,10 @@ int uvc_ctrl_restore_values(struct uvc_device *dev)
 			if (!ctrl->initialized || !ctrl->modified ||
 			    (ctrl->info.flags & UVC_CTRL_FLAG_RESTORE) == 0)
 				continue;
-
-			printk(KERN_INFO "restoring control %pUl/%u/%u\n",
-				ctrl->info.entity, ctrl->info.index,
-				ctrl->info.selector);
+			dev_info(&dev->udev->dev,
+				 "restoring control %pUl/%u/%u\n",
+				 ctrl->info.entity, ctrl->info.index,
+				 ctrl->info.selector);
 			ctrl->dirty = 1;
 		}
 
