@@ -209,6 +209,7 @@
 #define UVC_QUIRK_RESTORE_CTRLS_ON_INIT	0x00000400
 #define UVC_QUIRK_FORCE_Y8		0x00000800
 #define UVC_QUIRK_FORCE_BPP		0x00001000
+#define UVC_QUIRK_PRIVACY_DURING_STREAM	0x00002000
 
 /* Format flags */
 #define UVC_FMT_FLAG_COMPRESSED		0x00000001
@@ -367,6 +368,7 @@ struct uvc_entity {
 			struct gpio_desc *gpio_privacy;
 			int irq;
 			atomic_t gpio_privacy_value;
+			bool is_gpio_ready;
 		} gpio;
 	};
 
@@ -821,6 +823,9 @@ extern const struct v4l2_file_operations uvc_fops;
 /* Media controller */
 int uvc_mc_register_entities(struct uvc_video_chain *chain);
 void uvc_mc_cleanup_entity(struct uvc_entity *entity);
+
+/* Privacy gpio */
+u8 uvc_gpio_update_value(struct uvc_device *dev);
 
 /* Video */
 int uvc_video_init(struct uvc_streaming *stream);
