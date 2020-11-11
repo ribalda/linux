@@ -7,6 +7,7 @@
  */
 
 #include <linux/atomic.h>
+#include <linux/dmi.h>
 #include <linux/gpio/consumer.h>
 #include <linux/kernel.h>
 #include <linux/list.h>
@@ -1471,13 +1472,39 @@ next_descriptor:
 	return 0;
 }
 
+static bool uvc_ext_gpio_is_streaming(struct uvc_device *dev)
+{
+	struct uvc_streaming *streaming;
+
+	list_for_each_entry(streaming, &dev->streams, list) {
+		if (uvc_queue_streaming(&streaming->queue))
+			return true;
+	}
+
+	return false;
+}
+
+/* Update the cached value and return true if it has changed */
+static bool uvc_gpio_update_value(struct uvc_entity *unit, u8 *new_val)
+{
+	*new_val = gpiod_get_value(unit->gpio.gpio_privacy);
+
+	return atomic_xchg(&unit->gpio.gpio_privacy_value, *new_val) !=
+								      *new_val;
+}
+
 static int uvc_gpio_get_cur(struct uvc_device *dev, struct uvc_entity *entity,
 			    u8 cs, void *data, u16 size)
 {
 	if (cs != UVC_CT_PRIVACY_CONTROL || size < 1)
 		return -EINVAL;
 
-	*(uint8_t *)data = gpiod_get_value(entity->gpio.gpio_privacy);
+	if ((dev->quirks & UVC_QUIRK_PRIVACY_DURING_STREAM) &&
+	    !uvc_ext_gpio_is_streaming(dev))
+		return -EBUSY;
+
+	uvc_gpio_update_value(entity, (uint8_t *)data);
+
 	return 0;
 }
 
@@ -1491,25 +1518,68 @@ static int uvc_gpio_get_info(struct uvc_device *dev, struct uvc_entity *entity,
 	return 0;
 }
 
-static irqreturn_t uvc_privacy_gpio_irq(int irq, void *data)
+static struct uvc_entity *uvc_find_ext_gpio_unit(struct uvc_device *dev)
 {
-	struct uvc_device *dev = data;
-	struct uvc_video_chain *chain;
 	struct uvc_entity *unit;
-	u8 value;
+
+	list_for_each_entry(unit, &dev->entities, list) {
+		if (UVC_ENTITY_TYPE(unit) == UVC_EXT_GPIO_UNIT)
+			return unit;
+	}
+
+	return unit;
+}
+
+void uvc_privacy_gpio_event(struct uvc_device *dev)
+{
+	struct uvc_entity *unit;
+	struct uvc_video_chain *chain;
+	u8 new_value;
+
+	unit = uvc_find_ext_gpio_unit(dev);
+	if (WARN_ONCE(!unit, "Unable to find entity ext_gpio_unit"))
+		return;
+
+	if (!uvc_gpio_update_value(unit, &new_value))
+		return;
 
 	/* GPIO entities are always on the first chain */
 	chain = list_first_entry(&dev->chains, struct uvc_video_chain, list);
-	list_for_each_entry(unit, &dev->entities, list) {
-		if (UVC_ENTITY_TYPE(unit) != UVC_EXT_GPIO_UNIT)
-			continue;
-		value = gpiod_get_value(unit->gpio.gpio_privacy);
-		uvc_ctrl_status_event(NULL, chain, unit->controls, &value);
-		return IRQ_HANDLED;
-	}
+	uvc_ctrl_status_event(NULL, chain, unit->controls, &new_value);
+}
+
+static irqreturn_t uvc_privacy_gpio_irq(int irq, void *data)
+{
+	struct uvc_device *dev = data;
+
+	/* Ignore privacy events during streamoff */
+	if (dev->quirks & UVC_QUIRK_PRIVACY_DURING_STREAM)
+		if (!uvc_ext_gpio_is_streaming(dev))
+			return IRQ_HANDLED;
+
+	uvc_privacy_gpio_event(dev);
 
 	return IRQ_HANDLED;
 }
+
+static const struct dmi_system_id privacy_valid_during_streamon[] = {
+	{
+		.ident = "HP Elite c1030 Chromebook",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "HP"),
+			DMI_MATCH(DMI_PRODUCT_NAME, "Jinlon"),
+		},
+	},
+	{
+		.ident = "HP Pro c640 Chromebook",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "HP"),
+			DMI_MATCH(DMI_PRODUCT_NAME, "Dratini"),
+		},
+	},
+	{ } /* terminate list */
+};
+
 
 static int uvc_parse_gpio(struct uvc_device *dev)
 {
@@ -1544,6 +1614,9 @@ static int uvc_parse_gpio(struct uvc_device *dev)
 	irq = gpiod_to_irq(gpio_privacy);
 	if (irq == -EPROBE_DEFER)
 		return -EPROBE_DEFER;
+
+	if (dmi_check_system(privacy_valid_during_streamon))
+		dev->quirks |= UVC_QUIRK_PRIVACY_DURING_STREAM;
 
 	if (irq < 0)
 		return 0;

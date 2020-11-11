@@ -337,9 +337,12 @@ int uvc_dequeue_buffer(struct uvc_video_queue *queue, struct v4l2_buffer *buf,
 int uvc_queue_streamon(struct uvc_video_queue *queue, enum v4l2_buf_type type)
 {
 	int ret;
+	struct uvc_streaming *stream = uvc_queue_to_stream(queue);
 
 	mutex_lock(&queue->mutex);
 	ret = vb2_streamon(&queue->queue, type);
+	if (stream->dev->quirks & UVC_QUIRK_PRIVACY_DURING_STREAM)
+		uvc_privacy_gpio_event(stream->dev);
 	mutex_unlock(&queue->mutex);
 
 	return ret;
