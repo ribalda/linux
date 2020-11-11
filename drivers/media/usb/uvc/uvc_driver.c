@@ -7,6 +7,7 @@
  */
 
 #include <linux/atomic.h>
+#include <linux/dmi.h>
 #include <linux/gpio/consumer.h>
 #include <linux/kernel.h>
 #include <linux/list.h>
@@ -1472,6 +1473,17 @@ next_descriptor:
 /* -----------------------------------------------------------------------------
  * Privacy GPIO
  */
+static bool uvc_gpio_is_streaming(struct uvc_device *dev)
+{
+	struct uvc_streaming *streaming;
+
+	list_for_each_entry(streaming, &dev->streams, list) {
+		if (uvc_queue_streaming(&streaming->queue))
+			return true;
+	}
+
+	return false;
+}
 
 
 static u8 uvc_gpio_update_value(struct uvc_device *dev,
@@ -1499,7 +1511,12 @@ static int uvc_gpio_get_cur(struct uvc_device *dev, struct uvc_entity *entity,
 	if (cs != UVC_CT_PRIVACY_CONTROL || size < 1)
 		return -EINVAL;
 
+	if ((dev->quirks & UVC_QUIRK_PRIVACY_DURING_STREAM) &&
+	    !uvc_gpio_is_streaming(dev))
+		return -EBUSY;
+
 	*(uint8_t *)data = uvc_gpio_update_value(dev, entity);
+
 	return 0;
 }
 
@@ -1528,18 +1545,49 @@ static struct uvc_entity *uvc_gpio_find_entity(struct uvc_device *dev)
 	return NULL;
 }
 
-static irqreturn_t uvc_gpio_irq(int irq, void *data)
+void uvc_privacy_gpio_event(struct uvc_device *dev)
 {
-	struct uvc_device *dev = data;
 	struct uvc_entity *unit;
+
 
 	unit = uvc_gpio_find_entity(dev);
 	if (!unit)
-		return IRQ_HANDLED;
+		return;
 
 	uvc_gpio_update_value(dev, unit);
+}
+
+static irqreturn_t uvc_gpio_irq(int irq, void *data)
+{
+	struct uvc_device *dev = data;
+
+	/* Ignore privacy events during streamoff */
+	if (dev->quirks & UVC_QUIRK_PRIVACY_DURING_STREAM)
+		if (!uvc_gpio_is_streaming(dev))
+			return IRQ_HANDLED;
+
+	uvc_privacy_gpio_event(dev);
+
 	return IRQ_HANDLED;
 }
+
+static const struct dmi_system_id privacy_valid_during_streamon[] = {
+	{
+		.ident = "HP Elite c1030 Chromebook",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "HP"),
+			DMI_MATCH(DMI_PRODUCT_NAME, "Jinlon"),
+		},
+	},
+	{
+		.ident = "HP Pro c640 Chromebook",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "HP"),
+			DMI_MATCH(DMI_PRODUCT_NAME, "Dratini"),
+		},
+	},
+	{ } /* terminate list */
+};
 
 static int uvc_gpio_parse(struct uvc_device *dev)
 {
@@ -1576,6 +1624,9 @@ static int uvc_gpio_parse(struct uvc_device *dev)
 	sprintf(unit->name, "GPIO");
 
 	list_add_tail(&unit->list, &dev->entities);
+
+	if (dmi_check_system(privacy_valid_during_streamon))
+		dev->quirks |= UVC_QUIRK_PRIVACY_DURING_STREAM;
 
 	return 0;
 }
