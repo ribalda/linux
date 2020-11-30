@@ -532,8 +532,19 @@ struct uvc_urb {
 
 	char *buffer;
 	dma_addr_t dma;
-	struct page **pages;
-	struct sg_table sgt;
+	union {
+		struct {
+			struct page **pages;
+			struct sg_table sgt;
+		} non_cont;
+
+		struct {
+			struct page *pages;
+		} dma_pages;
+
+		struct {
+		} coherent;
+	};
 
 	unsigned int async_operations;
 	struct uvc_copy_op copy_operations[UVC_MAX_PACKETS];
@@ -639,6 +650,12 @@ struct uvc_device_info {
 	u32	meta_format;
 };
 
+enum buffer_alloc_mode {
+	COHERENT,
+	NON_CONTIGUOUS,
+	DMA_PAGES
+};
+
 struct uvc_device {
 	struct usb_device *udev;
 	struct usb_interface *intf;
@@ -674,6 +691,8 @@ struct uvc_device {
 	u8 *status;
 	struct input_dev *input;
 	char input_phys[64];
+
+	enum buffer_alloc_mode alloc_mode;
 
 	struct uvc_ctrl_work {
 		struct work_struct work;

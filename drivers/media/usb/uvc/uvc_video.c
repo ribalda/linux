@@ -11,6 +11,7 @@
 #include <linux/module.h>
 #include <linux/slab.h>
 #include <linux/usb.h>
+#include <linux/usb/hcd.h>
 #include <linux/videodev2.h>
 #include <linux/vmalloc.h>
 #include <linux/wait.h>
@@ -1099,7 +1100,42 @@ static int uvc_video_decode_start(struct uvc_streaming *stream,
 
 static inline struct device *stream_to_dmadev(struct uvc_streaming *stream)
 {
-	return stream->dev->udev->bus->controller->parent;
+	if (stream->dev->alloc_mode == DMA_PAGES)
+		return bus_to_hcd(stream->dev->udev->bus)->self.sysdev;
+	else
+		return stream->dev->udev->bus->controller->parent;
+}
+
+static void uvc_urb_dma_sync(struct uvc_urb *uvc_urb, bool for_device)
+{
+	struct device *dma_dev = dma_dev = stream_to_dmadev(uvc_urb->stream);
+
+	switch (uvc_urb->stream->dev->alloc_mode) {
+	case COHERENT:
+		return;
+	case DMA_PAGES:
+		if (for_device)
+			dma_sync_single_for_device(dma_dev,
+					uvc_urb->urb->transfer_dma,
+					uvc_urb->urb->transfer_buffer_length,
+					DMA_FROM_DEVICE);
+		else
+			dma_sync_single_for_cpu(dma_dev,
+					uvc_urb->urb->transfer_dma,
+					uvc_urb->urb->transfer_buffer_length,
+					DMA_FROM_DEVICE);
+		break;
+	case NON_CONTIGUOUS:
+		if (for_device)
+			dma_sync_sgtable_for_device(dma_dev,
+						    &uvc_urb->non_cont.sgt,
+						    DMA_FROM_DEVICE);
+		else
+			dma_sync_sgtable_for_cpu(dma_dev,
+						 &uvc_urb->non_cont.sgt,
+						 DMA_FROM_DEVICE);
+		break;
+	}
 }
 
 /*
@@ -1123,9 +1159,8 @@ static void uvc_video_copy_data_work(struct work_struct *work)
 		uvc_queue_buffer_release(op->buf);
 	}
 
-	if (uvc_urb->pages)
-		dma_sync_sgtable_for_device(stream_to_dmadev(uvc_urb->stream),
-					    &uvc_urb->sgt, DMA_FROM_DEVICE);
+	uvc_urb_dma_sync(uvc_urb, true);
+
 	ret = usb_submit_urb(uvc_urb->urb, GFP_KERNEL);
 	if (ret < 0)
 		uvc_printk(KERN_ERR, "Failed to resubmit video URB (%d).\n",
@@ -1547,17 +1582,12 @@ static void uvc_video_complete(struct urb *urb)
 	 * Process the URB headers, and optionally queue expensive memcpy tasks
 	 * to be deferred to a work queue.
 	 */
-	if (uvc_urb->pages)
-		dma_sync_sgtable_for_cpu(stream_to_dmadev(stream),
-					 &uvc_urb->sgt, DMA_FROM_DEVICE);
+	uvc_urb_dma_sync(uvc_urb, false);
 	stream->decode(uvc_urb, buf, buf_meta);
 
 	/* If no async work is needed, resubmit the URB immediately. */
 	if (!uvc_urb->async_operations) {
-		if (uvc_urb->pages)
-			dma_sync_sgtable_for_device(stream_to_dmadev(stream),
-						    &uvc_urb->sgt,
-						    DMA_FROM_DEVICE);
+		uvc_urb_dma_sync(uvc_urb, true);
 		ret = usb_submit_urb(uvc_urb->urb, GFP_ATOMIC);
 		if (ret < 0)
 			uvc_printk(KERN_ERR,
@@ -1574,65 +1604,118 @@ static void uvc_video_complete(struct urb *urb)
  */
 static void uvc_free_urb_buffers(struct uvc_streaming *stream)
 {
+	struct device *dma_dev = dma_dev = stream_to_dmadev(stream);
 	struct uvc_urb *uvc_urb;
 
 	for_each_uvc_urb(uvc_urb, stream) {
 		if (!uvc_urb->buffer)
 			continue;
 
-		if (uvc_urb->pages) {
-			sg_free_table(&uvc_urb->sgt);
-			vunmap(uvc_urb->buffer);
-			dma_free_noncontiguous(stream_to_dmadev(stream),
-					       stream->urb_size,
-					       uvc_urb->pages, uvc_urb->dma);
-		} else {
+		switch (stream->dev->alloc_mode) {
+		case COHERENT:
 			usb_free_coherent(stream->dev->udev, stream->urb_size,
 					  uvc_urb->buffer, uvc_urb->dma);
+			break;
+		case DMA_PAGES:
+			dma_free_pages(dma_dev, stream->urb_size,
+				       uvc_urb->dma_pages.pages, uvc_urb->dma,
+				       DMA_FROM_DEVICE);
+			break;
+		case NON_CONTIGUOUS:
+			sg_free_table(&uvc_urb->non_cont.sgt);
+			vunmap(uvc_urb->buffer);
+			dma_free_noncontiguous(dma_dev,
+					       stream->urb_size,
+					       uvc_urb->non_cont.pages,
+					       uvc_urb->dma);
+			break;
 		}
+
 		uvc_urb->buffer = NULL;
 	}
 
 	stream->urb_size = 0;
 }
 
-static bool uvc_alloc_urb_buffer(struct uvc_streaming *stream,
-				 struct uvc_urb *uvc_urb, gfp_t gfp_flags)
+static bool uvc_alloc_coherent(struct uvc_streaming *stream,
+			       struct uvc_urb *uvc_urb, gfp_t gfp_flags)
+{
+	uvc_urb->buffer = usb_alloc_coherent(stream->dev->udev,
+					     stream->urb_size,
+					     gfp_flags | __GFP_NOWARN,
+					     &uvc_urb->dma);
+	return uvc_urb->buffer != NULL;
+}
+
+static bool uvc_alloc_dma_pages(struct uvc_streaming *stream,
+				struct uvc_urb *uvc_urb, gfp_t gfp_flags)
 {
 	struct device *dma_dev = dma_dev = stream_to_dmadev(stream);
 
-	if (!dma_can_alloc_noncontiguous(dma_dev)) {
-		uvc_urb->buffer = usb_alloc_coherent(stream->dev->udev,
-						     stream->urb_size,
-						     gfp_flags | __GFP_NOWARN,
-						     &uvc_urb->dma);
-		return uvc_urb->buffer != NULL;
-	}
-
-	uvc_urb->pages = dma_alloc_noncontiguous(dma_dev, stream->urb_size,
-						 &uvc_urb->dma, gfp_flags, 0);
-	if (!uvc_urb->pages)
+	uvc_urb->dma_pages.pages = dma_alloc_pages(dma_dev, stream->urb_size,
+						  &uvc_urb->dma,
+						  DMA_FROM_DEVICE,
+						  GFP_KERNEL);
+	if (!uvc_urb->dma_pages.pages)
 		return false;
 
-	uvc_urb->buffer = vmap(uvc_urb->pages,
+	uvc_urb->buffer = page_address(uvc_urb->dma_pages.pages);
+	if (!uvc_urb->buffer)
+		dma_free_pages(dma_dev, stream->urb_size,
+			       uvc_urb->dma_pages.pages, uvc_urb->dma,
+			       DMA_FROM_DEVICE);
+
+	return uvc_urb->buffer != NULL;
+}
+
+static bool uvc_alloc_non_contiguous(struct uvc_streaming *stream,
+				     struct uvc_urb *uvc_urb, gfp_t gfp_flags)
+{
+	struct device *dma_dev = dma_dev = stream_to_dmadev(stream);
+
+	uvc_urb->non_cont.pages = dma_alloc_noncontiguous(dma_dev,
+						stream->urb_size,
+						&uvc_urb->dma,
+						gfp_flags, 0);
+	if (!uvc_urb->non_cont.pages)
+		return false;
+
+	uvc_urb->buffer = vmap(uvc_urb->non_cont.pages,
 			       PAGE_ALIGN(stream->urb_size) >> PAGE_SHIFT,
 			       VM_MAP, PAGE_KERNEL);
 	if (!uvc_urb->buffer) {
 		dma_free_noncontiguous(dma_dev, stream->urb_size,
-				       uvc_urb->pages, uvc_urb->dma);
+				       uvc_urb->non_cont.pages, uvc_urb->dma);
 		return false;
 	}
 
-	if (sg_alloc_table_from_pages(&uvc_urb->sgt, uvc_urb->pages,
+	if (sg_alloc_table_from_pages(&uvc_urb->non_cont.sgt,
+				uvc_urb->non_cont.pages,
 				PAGE_ALIGN(stream->urb_size) >> PAGE_SHIFT, 0,
 				stream->urb_size, GFP_KERNEL)) {
 		vunmap(uvc_urb->buffer);
 		dma_free_noncontiguous(dma_dev, stream->urb_size,
-				       uvc_urb->pages, uvc_urb->dma);
+				       uvc_urb->non_cont.pages, uvc_urb->dma);
 		return false;
 	}
 
+
 	return true;
+}
+
+static bool uvc_alloc_urb_buffer(struct uvc_streaming *stream,
+				 struct uvc_urb *uvc_urb, gfp_t gfp_flags)
+{
+
+	switch (stream->dev->alloc_mode) {
+	case COHERENT:
+		return uvc_alloc_coherent(stream, uvc_urb, gfp_flags);
+	case DMA_PAGES:
+		return uvc_alloc_dma_pages(stream, uvc_urb, gfp_flags);
+	case NON_CONTIGUOUS:
+	default:
+		return uvc_alloc_non_contiguous(stream, uvc_urb, gfp_flags);
+	}
 }
 
 /*
@@ -1935,10 +2018,7 @@ static int uvc_video_start_transfer(struct uvc_streaming *stream,
 
 	/* Submit the URBs. */
 	for_each_uvc_urb(uvc_urb, stream) {
-		if (uvc_urb->pages)
-			dma_sync_sgtable_for_device(stream_to_dmadev(stream),
-						    &uvc_urb->sgt,
-						    DMA_FROM_DEVICE);
+		uvc_urb_dma_sync(uvc_urb, true);
 		ret = usb_submit_urb(uvc_urb->urb, gfp_flags);
 		if (ret < 0) {
 			uvc_printk(KERN_ERR, "Failed to submit URB %u (%d).\n",

@@ -7,11 +7,13 @@
  */
 
 #include <linux/atomic.h>
+#include <linux/iommu.h>
 #include <linux/kernel.h>
 #include <linux/list.h>
 #include <linux/module.h>
 #include <linux/slab.h>
 #include <linux/usb.h>
+#include <linux/usb/hcd.h>
 #include <linux/videodev2.h>
 #include <linux/vmalloc.h>
 #include <linux/wait.h>
@@ -2171,6 +2173,15 @@ static int uvc_register_chains(struct uvc_device *dev)
 	return 0;
 }
 
+static enum buffer_alloc_mode uvc_find_buffer_alloc_mode(struct uvc_device *dev)
+{
+	if (dma_can_alloc_noncontiguous(dev->udev->bus->controller->parent))
+		return NON_CONTIGUOUS;
+	if (bus_to_hcd(dev->udev->bus)->self.sysdev->coherent_dma_mask)
+		return DMA_PAGES;
+	return COHERENT;
+}
+
 /* ------------------------------------------------------------------------
  * USB probe, disconnect, suspend and resume
  */
@@ -2213,6 +2224,8 @@ static int uvc_probe(struct usb_interface *intf,
 	dev->info = info ? info : &uvc_quirk_none;
 	dev->quirks = uvc_quirks_param == -1
 		    ? dev->info->quirks : uvc_quirks_param;
+
+	dev->alloc_mode = uvc_find_buffer_alloc_mode(dev);
 
 	if (udev->product != NULL)
 		strscpy(dev->name, udev->product, sizeof(dev->name));
