@@ -1332,7 +1332,7 @@ bool uvc_ctrl_status_event(struct urb *urb, struct uvc_video_chain *chain,
 		return false;
 	}
 
-	w->data = data;
+	memcpy(w->data, data, ctrl->info.size);
 	w->urb = urb;
 	w->chain = chain;
 	w->ctrl = ctrl;

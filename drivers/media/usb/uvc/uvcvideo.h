@@ -678,7 +678,7 @@ struct uvc_device {
 		struct urb *urb;
 		struct uvc_video_chain *chain;
 		struct uvc_control *ctrl;
-		const void *data;
+		u8 data[UVC_MAX_STATUS_SIZE];
 	} async_ctrl;
 };
 
