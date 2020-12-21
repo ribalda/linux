@@ -1275,11 +1275,9 @@ static void uvc_ctrl_send_slave_event(struct uvc_video_chain *chain,
 	uvc_ctrl_send_event(chain, handle, ctrl, mapping, val, changes);
 }
 
-static void uvc_ctrl_status_event_work(struct work_struct *work)
+static void __uvc_ctrl_status_event_work(struct uvc_device *dev,
+					 struct uvc_ctrl_work *w)
 {
-	struct uvc_device *dev = container_of(work, struct uvc_device,
-					      async_ctrl.work);
-	struct uvc_ctrl_work *w = &dev->async_ctrl;
 	struct uvc_video_chain *chain = w->chain;
 	struct uvc_control_mapping *mapping;
 	struct uvc_control *ctrl = w->ctrl;
@@ -1321,23 +1319,54 @@ static void uvc_ctrl_status_event_work(struct work_struct *work)
 			   ret);
 }
 
+static void uvc_ctrl_status_event_work(struct work_struct *work)
+{
+	struct uvc_device *dev = container_of(work, struct uvc_device,
+					      async_ctrl_work);
+	struct uvc_ctrl_work *w;
+
+	do {
+		mutex_lock(&dev->async_ctrl_lock);
+		w = list_first_entry_or_null(&dev->async_ctrl_list,
+					     struct uvc_ctrl_work,
+					     list);
+		if (w)
+			list_del(&w->list);
+		mutex_unlock(&dev->async_ctrl_lock);
+
+		if (!w)
+			return;
+
+		__uvc_ctrl_status_event_work(dev, w);
+		kfree(w);
+	} while (w);
+}
+
 bool uvc_ctrl_status_event(struct urb *urb, struct uvc_video_chain *chain,
 			   struct uvc_control *ctrl, const u8 *data)
 {
 	struct uvc_device *dev = chain->dev;
-	struct uvc_ctrl_work *w = &dev->async_ctrl;
+	struct uvc_ctrl_work *w;
 
 	if (list_empty(&ctrl->info.mappings)) {
 		ctrl->handle = NULL;
 		return false;
 	}
 
+	w = kzalloc(sizeof(*w), GFP_KERNEL);
+	if (WARN(!w, "Not enough memory to trigger uvc event"))
+		return false;
+
 	memcpy(w->data, data, ctrl->info.size);
 	w->urb = urb;
 	w->chain = chain;
 	w->ctrl = ctrl;
 
-	schedule_work(&w->work);
+	mutex_lock(&dev->async_ctrl_lock);
+	list_add_tail(&w->list, &dev->async_ctrl_list);
+	mutex_unlock(&dev->async_ctrl_lock);
+
+	schedule_work(&dev->async_ctrl_work);
 
 	return true;
 }
@@ -2277,7 +2306,9 @@ int uvc_ctrl_init_device(struct uvc_device *dev)
 	struct uvc_entity *entity;
 	unsigned int i;
 
-	INIT_WORK(&dev->async_ctrl.work, uvc_ctrl_status_event_work);
+	INIT_WORK(&dev->async_ctrl_work, uvc_ctrl_status_event_work);
+	mutex_init(&dev->async_ctrl_lock);
+	INIT_LIST_HEAD(&dev->async_ctrl_list);
 
 	/* Walk the entities list and instantiate controls */
 	list_for_each_entry(entity, &dev->entities, list) {
@@ -2348,8 +2379,8 @@ void uvc_ctrl_cleanup_device(struct uvc_device *dev)
 	unsigned int i;
 
 	/* Can be uninitialized if we are aborting on probe error. */
-	if (dev->async_ctrl.work.func)
-		cancel_work_sync(&dev->async_ctrl.work);
+	if (dev->async_ctrl_work.func)
+		cancel_work_sync(&dev->async_ctrl_work);
 
 	/* Free controls and control mappings for all entities. */
 	list_for_each_entry(entity, &dev->entities, list) {

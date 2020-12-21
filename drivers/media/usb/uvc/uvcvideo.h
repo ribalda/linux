@@ -637,6 +637,14 @@ struct uvc_device_info {
 	u32	meta_format;
 };
 
+struct uvc_ctrl_work {
+	struct list_head list;
+	struct urb *urb;
+	struct uvc_video_chain *chain;
+	struct uvc_control *ctrl;
+	u8 data[UVC_MAX_STATUS_SIZE];
+};
+
 struct uvc_device {
 	struct usb_device *udev;
 	struct usb_interface *intf;
@@ -673,13 +681,10 @@ struct uvc_device {
 	struct input_dev *input;
 	char input_phys[64];
 
-	struct uvc_ctrl_work {
-		struct work_struct work;
-		struct urb *urb;
-		struct uvc_video_chain *chain;
-		struct uvc_control *ctrl;
-		u8 data[UVC_MAX_STATUS_SIZE];
-	} async_ctrl;
+	/* Async control */
+	struct work_struct async_ctrl_work;
+	struct list_head async_ctrl_list;
+	struct mutex async_ctrl_lock;
 };
 
 enum uvc_handle_state {
