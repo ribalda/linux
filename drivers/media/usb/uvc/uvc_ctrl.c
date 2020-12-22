@@ -1254,17 +1254,14 @@ static void uvc_ctrl_send_slave_event(struct uvc_video_chain *chain,
 	uvc_ctrl_send_event(chain, handle, ctrl, mapping, val, changes);
 }
 
-static void uvc_ctrl_status_event_work(struct work_struct *work)
+static void __uvc_ctrl_status_event(struct uvc_device *dev,
+				    struct uvc_ctrl_work *w)
 {
-	struct uvc_device *dev = container_of(work, struct uvc_device,
-					      async_ctrl.work);
-	struct uvc_ctrl_work *w = &dev->async_ctrl;
 	struct uvc_video_chain *chain = w->chain;
 	struct uvc_control_mapping *mapping;
 	struct uvc_control *ctrl = w->ctrl;
 	struct uvc_fh *handle;
 	unsigned int i;
-	int ret;
 
 	mutex_lock(&chain->ctrl_mutex);
 
@@ -1291,6 +1288,16 @@ static void uvc_ctrl_status_event_work(struct work_struct *work)
 	}
 
 	mutex_unlock(&chain->ctrl_mutex);
+}
+
+static void uvc_ctrl_status_event_work(struct work_struct *work)
+{
+	struct uvc_device *dev = container_of(work, struct uvc_device,
+					      async_ctrl.work);
+	struct uvc_ctrl_work *w = &dev->async_ctrl;
+	int ret;
+
+	__uvc_ctrl_status_event(dev, w);
 
 	/* Resubmit the URB. */
 	w->urb->interval = dev->int_ep->desc.bInterval;
@@ -1319,6 +1326,24 @@ bool uvc_ctrl_status_event(struct urb *urb, struct uvc_video_chain *chain,
 	schedule_work(&w->work);
 
 	return true;
+}
+
+void uvc_ctrl_status_event_direct(struct uvc_video_chain *chain,
+				  struct uvc_control *ctrl, const u8 *data)
+{
+	struct uvc_device *dev = chain->dev;
+	struct uvc_ctrl_work w;
+
+	if (list_empty(&ctrl->info.mappings)) {
+		ctrl->handle = NULL;
+		return;
+	}
+
+	w.data = data;
+	w.chain = chain;
+	w.ctrl = ctrl;
+
+	__uvc_ctrl_status_event(dev, &w);
 }
 
 static bool uvc_ctrl_xctrls_has_control(const struct v4l2_ext_control *xctrls,
