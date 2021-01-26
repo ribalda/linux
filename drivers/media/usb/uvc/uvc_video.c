@@ -1263,11 +1263,11 @@ static void uvc_urb_dma_sync(struct uvc_urb *uvc_urb, bool for_device)
 	case NON_CONTIGUOUS:
 		if (for_device)
 			dma_sync_sgtable_for_device(dma_dev,
-						    &uvc_urb->non_cont.sgt,
+						    uvc_urb->non_cont.sgt,
 						    DMA_FROM_DEVICE);
 		else
 			dma_sync_sgtable_for_cpu(dma_dev,
-						 &uvc_urb->non_cont.sgt,
+						 uvc_urb->non_cont.sgt,
 						 DMA_FROM_DEVICE);
 		break;
 	}
@@ -1779,11 +1779,9 @@ static void uvc_free_urb_buffers(struct uvc_streaming *stream)
 				       DMA_FROM_DEVICE);
 			break;
 		case NON_CONTIGUOUS:
-			sg_free_table(&uvc_urb->non_cont.sgt);
-			vunmap(uvc_urb->buffer);
-			dma_free_noncontiguous(dma_dev,
-					       stream->urb_size,
-					       uvc_urb->non_cont.pages,
+			dma_vunmap_noncontiguous(dma_dev, uvc_urb->buffer);
+			dma_free_noncontiguous(dma_dev, stream->urb_size,
+					       uvc_urb->non_cont.sgt,
 					       uvc_urb->dma);
 			break;
 		}
@@ -1828,34 +1826,23 @@ static bool uvc_alloc_dma_pages(struct uvc_streaming *stream,
 static bool uvc_alloc_non_contiguous(struct uvc_streaming *stream,
 				     struct uvc_urb *uvc_urb, gfp_t gfp_flags)
 {
-	struct device *dma_dev = dma_dev = stream_to_dmadev(stream);
+	struct device *dma_dev = stream_to_dmadev(stream);
 
-	uvc_urb->non_cont.pages = dma_alloc_noncontiguous(dma_dev,
+
+	uvc_urb->non_cont.sgt = dma_alloc_noncontiguous(dma_dev,
 						stream->urb_size,
 						&uvc_urb->dma,
 						gfp_flags, 0);
-	if (!uvc_urb->non_cont.pages)
+	if (!uvc_urb->non_cont.sgt)
 		return false;
 
-	uvc_urb->buffer = vmap(uvc_urb->non_cont.pages,
-			       PAGE_ALIGN(stream->urb_size) >> PAGE_SHIFT,
-			       VM_MAP, PAGE_KERNEL);
+	uvc_urb->buffer = dma_vmap_noncontiguous(dma_dev, stream->urb_size,
+						 uvc_urb->non_cont.sgt);
 	if (!uvc_urb->buffer) {
 		dma_free_noncontiguous(dma_dev, stream->urb_size,
-				       uvc_urb->non_cont.pages, uvc_urb->dma);
+				       uvc_urb->non_cont.sgt, uvc_urb->dma);
 		return false;
 	}
-
-	if (sg_alloc_table_from_pages(&uvc_urb->non_cont.sgt,
-				uvc_urb->non_cont.pages,
-				PAGE_ALIGN(stream->urb_size) >> PAGE_SHIFT, 0,
-				stream->urb_size, GFP_KERNEL)) {
-		vunmap(uvc_urb->buffer);
-		dma_free_noncontiguous(dma_dev, stream->urb_size,
-				       uvc_urb->non_cont.pages, uvc_urb->dma);
-		return false;
-	}
-
 
 	return true;
 }

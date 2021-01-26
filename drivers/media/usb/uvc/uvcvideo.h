@@ -546,8 +546,7 @@ struct uvc_urb {
 	dma_addr_t dma;
 	union {
 		struct {
-			struct page **pages;
-			struct sg_table sgt;
+			struct sg_table *sgt;
 		} non_cont;
 
 		struct {

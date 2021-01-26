@@ -2175,11 +2175,11 @@ static int uvc_register_chains(struct uvc_device *dev)
 
 static enum buffer_alloc_mode uvc_find_buffer_alloc_mode(struct uvc_device *dev)
 {
-	if (dma_can_alloc_noncontiguous(dev->udev->bus->controller->parent))
+	//if (dma_can_alloc_noncontiguous(dev->udev->bus->controller->parent))
 		return NON_CONTIGUOUS;
-	if (bus_to_hcd(dev->udev->bus)->self.sysdev->coherent_dma_mask)
+	/*if (bus_to_hcd(dev->udev->bus)->self.sysdev->coherent_dma_mask)
 		return DMA_PAGES;
-	return COHERENT;
+	return COHERENT;*/
 }
 
 /* ------------------------------------------------------------------------
